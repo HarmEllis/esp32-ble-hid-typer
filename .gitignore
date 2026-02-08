@@ -1,0 +1,29 @@
+# ESP-IDF
+firmware/build/
+firmware/sdkconfig
+firmware/sdkconfig.old
+firmware/managed_components/
+firmware/dependencies.lock
+
+# OTA signing private key (NEVER commit)
+ota_signing_key.pem
+firmware/ota_signing_key.pem
+
+# Node.js
+node_modules/
+webapp/dist/
+webapp/.vite/
+
+# IDE
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
