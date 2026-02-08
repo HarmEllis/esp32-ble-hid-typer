@@ -1,0 +1,61 @@
+name: Build Firmware
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: espressif/idf:v5.3
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build firmware
+        run: |
+          cd firmware
+          idf.py set-target esp32s3
+          idf.py build
+
+      - name: Sign firmware for OTA
+        env:
+          OTA_SIGNING_KEY: ${{ secrets.OTA_SIGNING_KEY }}
+        run: |
+          if [ -z "$OTA_SIGNING_KEY" ]; then
+            echo "OTA_SIGNING_KEY not set, skipping signing"
+            exit 0
+          fi
+          echo "$OTA_SIGNING_KEY" > ota_signing_key.pem
+          openssl dgst -sha256 -sign ota_signing_key.pem \
+              -out firmware/build/firmware.sig \
+              firmware/build/esp32-ble-hid-typer.bin
+          rm ota_signing_key.pem
+
+      - name: Rename binaries
+        run: |
+          cp firmware/build/esp32-ble-hid-typer.bin firmware-esp32s3.bin
+          cp firmware/build/firmware.sig firmware-esp32s3.sig
+          cp firmware/build/bootloader/bootloader.bin bootloader-esp32s3.bin
+          cp firmware/build/partition_table/partition-table.bin partition-table-esp32s3.bin
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firmware-esp32s3
+          path: |
+            firmware-esp32s3.bin
+            firmware-esp32s3.sig
+            bootloader-esp32s3.bin
+            partition-table-esp32s3.bin
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: firmware-esp32s3/*
