@@ -9,12 +9,14 @@
     "preview": "vite preview --host"
   },
   "dependencies": {
+    "esptool-js": "^0.5.7",
     "preact": "^10.28.3",
     "preact-router": "^4.1.2"
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.74.0",
     "@preact/preset-vite": "^2.10.3",
+    "@types/w3c-web-serial": "^1.0.8",
     "@types/web-bluetooth": "^0.0.21",
     "puppeteer": "^24.37.2",
     "typescript": "^5.9.3",
