@@ -20,7 +20,8 @@
         "espressif.esp-idf-extension",
         "esbenp.prettier-vscode",
         "dbaeumer.vscode-eslint",
-        "Anthropic.claude-code"
+        "Anthropic.claude-code",
+        "github.vscode-github-actions"
       ],
       "settings": {
         "idf.espIdfPath": "/opt/esp/idf",
