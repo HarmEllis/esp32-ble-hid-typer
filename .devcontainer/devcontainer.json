@@ -10,6 +10,10 @@
     "IDF_PYTHON_CHECK_CONSTRAINTS": "no",
     "IDF_CCACHE_ENABLE": "1"
   },
+  "mounts": [
+    "source=${localEnv:HOME}/.claude,target=/home/node/.claude,type=bind,consistency=cached",
+    "source=${localEnv:HOME}/.claude.json,target=/home/node/.claude.json,type=bind,consistency=cached"
+  ],
   "customizations": {
     "vscode": {
       "extensions": [
