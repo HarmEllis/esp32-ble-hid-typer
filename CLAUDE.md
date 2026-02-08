@@ -94,7 +94,7 @@ This project implements defense-in-depth security for embedded systems where fun
 1. **First time**: User visits `https://<username>.github.io/<repo>/` in Chrome → installs the PWA → navigates to "Flash Firmware" page → flashes firmware via Web Serial (no parameters needed) → powers on ESP32
 2. **Provisioning mode (first boot)**: ESP32 boots without PIN → enters provisioning mode → broadcasts BLE service "ESP32-HID-SETUP" → built-in LED blinks orange slowly
 3. **Initial setup**: Open PWA → PWA detects provisioning mode → connect via BLE → provisioning UI appears → enter 6-digit PIN (mandatory, validated) → optionally enter WiFi credentials (Improv WiFi protocol) → save → ESP32 reboots into normal mode
-4. **First pairing (BLE)**: Open PWA → connect via Bluetooth → OS prompts for passkey → enter chosen PIN → PWA forces PIN change before any other action
+4. **First pairing (BLE)**: Open PWA → connect via Bluetooth → OS prompts for passkey → enter chosen PIN
 5. **Daily use (BLE)**: Open PWA → connect via Bluetooth → paste/type text → ESP32 types it out (red LED flashes)
 6. **Certificate setup (once per device)**: 
    - PWA reads certificate fingerprint via BLE
@@ -251,7 +251,7 @@ esp32-ble-hid-typer/
 │       │   ├── BleConnect.tsx        # BLE connect/disconnect, pairing (normal mode)
 │       │   ├── NetworkConnect.tsx    # IP input, PIN entry, WSS connect
 │       │   ├── CertificateSetup.tsx  # Certificate download + fingerprint verification + import instructions
-│       │   ├── PinSetup.tsx          # Forced PIN change screen (blocks until changed)
+│       │   ├── PinSetup.tsx          # Optionally PIN change via PWA
 │       │   ├── TextSender.tsx        # Textarea + send button
 │       │   ├── ClipboardPaste.tsx    # "Paste & Send" button (navigator.clipboard)
 │       │   ├── StatusBar.tsx         # Connection status, typing progress bar
@@ -337,11 +337,6 @@ PWA                              ESP32
  │──── Enter PIN (via OS) ─────────►│
  │                                 │
  │◄───── Read Status ──────────────│
- │                                 │
- │──── (if pin_set=false) ─────────│
- │──── Write PIN change ───────────►│
- │                                 │
- │◄───── Success ──────────────────│
  │                                 │
  │──── Read Cert Fingerprint ──────►│
  │                                 │
@@ -1290,7 +1285,7 @@ openssl dgst -sha256 -sign ota_signing_key.pem -out build/firmware.sig build/esp
 - **Provisioning flow**: Set PIN + WiFi, verify device reboots into normal mode, verify WiFi connection
 - **Web Serial flasher**: Test firmware flash without parameters
 - **BLE normal mode**: nRF Connect mobile app for GATT testing after provisioning
-- **BLE Security**: verify pairing requires user-chosen PIN from provisioning, verify forced PIN change on first connection
+- **BLE Security**: verify pairing requires user-chosen PIN from provisioning
 - **BLE Fingerprint**: verify reading characteristic returns 64-char hex SHA256
 - **WiFi**: verify connection with credentials from provisioning, verify IP
 - **Certificate generation**: verify ECDSA P-256 cert created, verify fingerprint matches across BLE and HTTP
@@ -1376,7 +1371,6 @@ Before releasing to production:
 - [ ] Provisioning UI validates PIN format (6 digits, not 000000, not sequential/repetitive)
 - [ ] Provisioning commands (set_pin, set_wifi, complete) working
 - [ ] Normal mode only starts after PIN is set
-- [ ] PIN change forced on first BLE connection (normal mode)
 - [ ] Rate limiting active (3 attempts/60s, lockout after 10)
 - [ ] BLE LE Secure Connections enforced
 - [ ] Certificate fingerprint exchange via BLE working

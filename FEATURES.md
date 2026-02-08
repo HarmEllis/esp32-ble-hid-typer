@@ -63,7 +63,6 @@ Structured overview of all features, grouped by domain.
 | Passkey pairing | PIN as passkey for OS pairing prompt |
 | Encrypted connections | Unencrypted connections are rejected |
 | Bonding | Only most recent bonding kept |
-| Forced PIN change | Mandatory PIN change on first connection after provisioning |
 
 ---
 
@@ -292,7 +291,7 @@ Configuration: 115200 baud, 8N1. Requires separate USB-UART bridge.
 | BleConnect | BLE connection in normal mode |
 | NetworkConnect | IP + PIN input for WSS |
 | CertificateSetup | Certificate download + fingerprint verification |
-| PinSetup | Mandatory PIN change |
+| PinSetup | Optionally PIN change |
 | TextSender | Enter and send text |
 | ClipboardPaste | Paste & send from clipboard |
 | StatusBar | Connection status and typing progress |

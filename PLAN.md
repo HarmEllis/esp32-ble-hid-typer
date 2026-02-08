@@ -185,7 +185,6 @@ This plan describes how Claude Code builds and validates the project in three ph
 - Implement exponential backoff after failed attempts.
 - Implement device lockout after 10 failed attempts (requires physical reset).
 - Implement PIN change via BLE characteristic (requires old PIN).
-- Implement "forced PIN change" on first BLE connection after provisioning.
 
 **Validation:** After 3 incorrect PIN attempts, further authentication is blocked for 60s. After 10 attempts the device is locked. PIN change only works with the correct old PIN.
 
@@ -255,10 +254,9 @@ This plan describes how Claude Code builds and validates the project in three ph
   - If `pin_set === false` or if this is the first connection after provisioning: redirect to PIN change screen.
 
 - Create `PinSetup.tsx`:
-  - Mandatory PIN change (old PIN + new PIN 2x).
-  - Blocks all other functionality until PIN is changed.
+  - Optionally PIN change (old PIN + new PIN 2x).
 
-**Validation:** BLE connection from the PWA, including pairing with PIN. Forced PIN change works and blocks the rest of the UI.
+**Validation:** BLE connection from the PWA, including pairing with PIN.
 
 ### 2.16 PWA — Text sending
 
@@ -310,7 +308,6 @@ This plan describes how Claude Code builds and validates the project in three ph
 
 - [ ] Provisioning flow works end-to-end (PWA → BLE → ESP32)
 - [ ] BLE pairing with PIN works
-- [ ] Forced PIN change after first connection works
 - [ ] Text typing via BLE → USB HID works
 - [ ] LED statuses are correct
 - [ ] Rate limiting and lockout work
