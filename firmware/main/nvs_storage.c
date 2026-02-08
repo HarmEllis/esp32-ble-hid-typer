@@ -34,13 +34,17 @@ esp_err_t nvs_storage_init(void)
     /* Read or generate encryption keys */
     nvs_sec_cfg_t cfg;
     esp_err_t err = nvs_flash_read_security_cfg(keys_part, &cfg);
-    if (err == ESP_ERR_NVS_KEYS_NOT_INITIALIZED) {
-        ESP_LOGI(TAG, "Generating NVS encryption keys (first boot)");
+    if (err == ESP_ERR_NVS_KEYS_NOT_INITIALIZED || err == ESP_ERR_NVS_CORRUPT_KEY_PART) {
+        ESP_LOGI(TAG, "NVS keys %s - erasing keys partition and generating new keys",
+                 err == ESP_ERR_NVS_CORRUPT_KEY_PART ? "corrupt" : "not initialized");
+        ESP_ERROR_CHECK(esp_partition_erase_range(keys_part, 0, keys_part->size));
         err = nvs_flash_generate_keys(keys_part, &cfg);
         if (err != ESP_OK) {
             ESP_LOGE(TAG, "Failed to generate NVS keys: %s", esp_err_to_name(err));
             return err;
         }
+        /* Erase NVS data — old entries are unreadable with new keys */
+        nvs_flash_erase();
     } else if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to read NVS keys: %s", esp_err_to_name(err));
         return err;
