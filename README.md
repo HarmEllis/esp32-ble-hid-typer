@@ -43,6 +43,94 @@ cd webapp && npm run dev
 cd webapp && npm run build
 ```
 
+### Signing & Flashing Firmware Locally
+
+#### 1. Generate an OTA signing key pair (one-time)
+
+```bash
+# Generate ECDSA P-256 private key
+openssl ecparam -genkey -name prime256v1 -out ota_signing_key.pem
+
+# Extract public key (committed to the repo, embedded in firmware)
+openssl ec -in ota_signing_key.pem -pubout -out firmware/ota_signing_pubkey.pem
+```
+
+Keep `ota_signing_key.pem` secret — it is gitignored. See [docs/OTA_SIGNING.md](docs/OTA_SIGNING.md) for CI/CD setup with GitHub Secrets.
+
+#### 2. Build the firmware
+
+```bash
+cd firmware
+idf.py set-target esp32s3
+idf.py build
+```
+
+The binary is written to `firmware/build/esp32-ble-hid-typer.bin`.
+
+#### 3. Sign the firmware for OTA
+
+```bash
+openssl dgst -sha256 -sign ota_signing_key.pem \
+    -out build/firmware.sig \
+    build/esp32-ble-hid-typer.bin
+```
+
+To verify the signature:
+
+```bash
+openssl dgst -sha256 -verify ota_signing_pubkey.pem \
+    -signature build/firmware.sig \
+    build/esp32-ble-hid-typer.bin
+# Expected output: Verified OK
+```
+
+#### 4. Flash via USB
+
+**Option A — PWA Web Serial flasher (recommended)**
+
+Open the PWA in a Chromium browser, navigate to the **Flash Firmware** page, connect the ESP32-S3 via USB, and follow the on-screen instructions. No extra tools needed.
+
+**Option B — esptool.py from the DevContainer**
+
+If you have a USB-UART bridge connected and USB passthrough configured:
+
+```bash
+cd firmware
+idf.py -p /dev/ttyUSB0 flash
+```
+
+> **Note:** USB flashing always accepts unsigned firmware. OTA signing is only enforced for over-the-air updates.
+
+### Serial Console (Optional)
+
+The ESP32-S3 shares its internal USB PHY between USB-OTG (used for HID keyboard) and USB-Serial-JTAG. Once TinyUSB initializes, USB-Serial-JTAG is no longer available. To access the serial console you need a **separate USB-UART bridge** (e.g. CP2102, CH340) wired to dedicated UART TX/RX pins on the board.
+
+Connect the USB-UART bridge and open the console at **115200 baud, 8N1**:
+
+```bash
+# Linux
+idf.py -p /dev/ttyUSB0 monitor
+
+# macOS
+idf.py -p /dev/cu.usbserial-* monitor
+
+# Or any serial terminal (minicom, screen, PuTTY, etc.)
+screen /dev/ttyUSB0 115200
+```
+
+Type `help` to see available commands:
+
+| Command | Description |
+|---------|-------------|
+| `status` | Show device status, heap usage, PIN state |
+| `heap` | Show detailed heap usage |
+| `factory_reset` | Wipe PIN and WiFi credentials, reboot to provisioning mode |
+| `full_reset` | Wipe everything (including certificates), reboot to provisioning mode |
+| `reboot` | Reboot the device |
+| `help` | List available commands |
+
+> The serial console is **not required** for normal use. All essential operations (flashing, provisioning, factory reset) are available through the PWA and the BOOT button.
+
 ## Project Structure
 
 ```
