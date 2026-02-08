@@ -1,4 +1,15 @@
 idf_component_register(
     SRCS "main.c"
+         "neopixel.c"
+         "nvs_storage.c"
+         "usb_hid.c"
+         "typing_engine.c"
+         "auth.c"
+         "audit_log.c"
+         "provisioning.c"
+         "ble_security.c"
+         "ble_server.c"
+         "button_reset.c"
+         "serial_cmd.c"
     INCLUDE_DIRS "."
 )
