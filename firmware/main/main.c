@@ -31,6 +31,9 @@ void app_main(void)
     /* Initialize BOOT button monitor (both modes) */
     ESP_ERROR_CHECK(button_reset_init());
 
+    /* Initialize serial console commands (both modes) */
+    ESP_ERROR_CHECK(serial_cmd_init());
+
     if (!nvs_storage_has_pin()) {
         ESP_LOGI(TAG, "No PIN found - entering provisioning mode");
         provisioning_start();
@@ -52,9 +55,6 @@ void app_main(void)
 
     /* Initialize BLE server (normal mode) */
     ESP_ERROR_CHECK(ble_server_init());
-
-    /* Initialize serial console commands */
-    ESP_ERROR_CHECK(serial_cmd_init());
 
     ESP_LOGI(TAG, "Normal mode initialized");
 }
