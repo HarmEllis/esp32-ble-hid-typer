@@ -151,7 +151,7 @@ The PWA is hosted on GitHub Pages (free HTTPS). It communicates with the ESP32 e
 Preact PWA ── BLE GATT ──> ESP32-S3 ── USB HID ──> Target PC
 ```
 
-- **BLE**: Web Bluetooth API, LE Secure Connections with PIN pairing
+- **BLE**: Web Bluetooth API with app-layer PIN unlock
 
 See [CLAUDE.md](CLAUDE.md) for the full architecture, protocols, and security model.
 

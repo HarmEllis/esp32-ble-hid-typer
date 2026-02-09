@@ -18,6 +18,7 @@
 
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 static const char *TAG = "ble_server";
 
@@ -30,6 +31,16 @@ static uint16_t s_status_val_handle;
 static uint16_t s_pin_mgmt_val_handle;
 static uint16_t s_wifi_config_val_handle;
 static uint16_t s_cert_fp_val_handle;
+static bool s_authenticated;
+
+typedef enum {
+    AUTH_ERROR_NONE = 0,
+    AUTH_ERROR_INVALID_PIN,
+    AUTH_ERROR_RATE_LIMITED,
+    AUTH_ERROR_LOCKED_OUT,
+} auth_error_state_t;
+
+static auth_error_state_t s_auth_error = AUTH_ERROR_NONE;
 
 /* Service UUID: 6e400001-b5a3-f393-e0a9-e50e24dcca9e (little-endian) */
 static const ble_uuid128_t svc_uuid =
@@ -72,6 +83,54 @@ static int wifi_config_access_cb(uint16_t conn_handle, uint16_t attr_handle,
                                   struct ble_gatt_access_ctxt *ctxt, void *arg);
 static int cert_fp_access_cb(uint16_t conn_handle, uint16_t attr_handle,
                               struct ble_gatt_access_ctxt *ctxt, void *arg);
+static void notify_status_if_connected(void);
+
+static void reset_session_auth(void)
+{
+    s_authenticated = false;
+    s_auth_error = AUTH_ERROR_NONE;
+}
+
+static void set_session_auth_result(auth_result_t result)
+{
+    switch (result) {
+    case AUTH_OK:
+        s_authenticated = true;
+        s_auth_error = AUTH_ERROR_NONE;
+        break;
+    case AUTH_FAIL_INVALID_PIN:
+        s_authenticated = false;
+        s_auth_error = AUTH_ERROR_INVALID_PIN;
+        break;
+    case AUTH_FAIL_RATE_LIMITED:
+        s_authenticated = false;
+        s_auth_error = AUTH_ERROR_RATE_LIMITED;
+        break;
+    case AUTH_FAIL_LOCKED_OUT:
+        s_authenticated = false;
+        s_auth_error = AUTH_ERROR_LOCKED_OUT;
+        break;
+    default:
+        s_authenticated = false;
+        s_auth_error = AUTH_ERROR_INVALID_PIN;
+        break;
+    }
+}
+
+static const char *auth_error_to_string(auth_error_state_t state)
+{
+    switch (state) {
+    case AUTH_ERROR_INVALID_PIN:
+        return "invalid_pin";
+    case AUTH_ERROR_RATE_LIMITED:
+        return "rate_limited";
+    case AUTH_ERROR_LOCKED_OUT:
+        return "locked_out";
+    case AUTH_ERROR_NONE:
+    default:
+        return NULL;
+    }
+}
 
 /* GATT service definition */
 static const struct ble_gatt_svc_def s_gatt_svcs[] = {
@@ -83,41 +142,35 @@ static const struct ble_gatt_svc_def s_gatt_svcs[] = {
                 /* Text Input (Write) */
                 .uuid = &text_input_uuid.u,
                 .access_cb = text_input_access_cb,
-                .flags = BLE_GATT_CHR_F_WRITE | BLE_GATT_CHR_F_WRITE_NO_RSP
-                       | BLE_GATT_CHR_F_WRITE_ENC | BLE_GATT_CHR_F_WRITE_AUTHEN,
+                .flags = BLE_GATT_CHR_F_WRITE | BLE_GATT_CHR_F_WRITE_NO_RSP,
                 .val_handle = &s_text_input_val_handle,
             },
             {
                 /* Status (Read, Notify) */
                 .uuid = &status_uuid.u,
                 .access_cb = status_access_cb,
-                .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_NOTIFY
-                       | BLE_GATT_CHR_F_READ_ENC | BLE_GATT_CHR_F_READ_AUTHEN,
+                .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_NOTIFY,
                 .val_handle = &s_status_val_handle,
             },
             {
                 /* PIN Management (Write) */
                 .uuid = &pin_mgmt_uuid.u,
                 .access_cb = pin_mgmt_access_cb,
-                .flags = BLE_GATT_CHR_F_WRITE
-                       | BLE_GATT_CHR_F_WRITE_ENC | BLE_GATT_CHR_F_WRITE_AUTHEN,
+                .flags = BLE_GATT_CHR_F_WRITE,
                 .val_handle = &s_pin_mgmt_val_handle,
             },
             {
                 /* WiFi Config (stub) */
                 .uuid = &wifi_config_uuid.u,
                 .access_cb = wifi_config_access_cb,
-                .flags = BLE_GATT_CHR_F_WRITE | BLE_GATT_CHR_F_READ
-                       | BLE_GATT_CHR_F_WRITE_ENC | BLE_GATT_CHR_F_WRITE_AUTHEN
-                       | BLE_GATT_CHR_F_READ_ENC | BLE_GATT_CHR_F_READ_AUTHEN,
+                .flags = BLE_GATT_CHR_F_WRITE | BLE_GATT_CHR_F_READ,
                 .val_handle = &s_wifi_config_val_handle,
             },
             {
                 /* Cert Fingerprint (stub) */
                 .uuid = &cert_fp_uuid.u,
                 .access_cb = cert_fp_access_cb,
-                .flags = BLE_GATT_CHR_F_READ
-                       | BLE_GATT_CHR_F_READ_ENC | BLE_GATT_CHR_F_READ_AUTHEN,
+                .flags = BLE_GATT_CHR_F_READ,
                 .val_handle = &s_cert_fp_val_handle,
             },
             { 0 },
@@ -131,6 +184,7 @@ static int text_input_access_cb(uint16_t conn_handle, uint16_t attr_handle,
                                  struct ble_gatt_access_ctxt *ctxt, void *arg)
 {
     if (ctxt->op != BLE_GATT_ACCESS_OP_WRITE_CHR) return BLE_ATT_ERR_UNLIKELY;
+    if (!s_authenticated) return BLE_ATT_ERR_INSUFFICIENT_AUTHEN;
 
     uint16_t om_len = OS_MBUF_PKTLEN(ctxt->om);
     if (om_len == 0) return 0;
@@ -152,11 +206,38 @@ static int status_access_cb(uint16_t conn_handle, uint16_t attr_handle,
 {
     if (ctxt->op != BLE_GATT_ACCESS_OP_READ_CHR) return BLE_ATT_ERR_UNLIKELY;
 
-    char json[128];
-    int len = snprintf(json, sizeof(json),
-                       "{\"connected\":true,\"typing\":%s,\"queue\":%lu}",
+    const char *auth_error = auth_error_to_string(s_auth_error);
+    uint32_t retry_delay_ms = s_authenticated ? 0 : auth_get_retry_delay_ms();
+    bool locked_out = auth_is_locked_out();
+
+    char json[256];
+    int len;
+    if (auth_error != NULL) {
+        len = snprintf(json, sizeof(json),
+                       "{\"connected\":true,\"typing\":%s,\"queue\":%lu,"
+                       "\"authenticated\":%s,\"retry_delay_ms\":%lu,"
+                       "\"locked_out\":%s,\"auth_error\":\"%s\"}",
                        typing_engine_is_typing() ? "true" : "false",
-                       (unsigned long)typing_engine_queue_length());
+                       (unsigned long)typing_engine_queue_length(),
+                       s_authenticated ? "true" : "false",
+                       (unsigned long)retry_delay_ms,
+                       locked_out ? "true" : "false",
+                       auth_error);
+    } else {
+        len = snprintf(json, sizeof(json),
+                       "{\"connected\":true,\"typing\":%s,\"queue\":%lu,"
+                       "\"authenticated\":%s,\"retry_delay_ms\":%lu,"
+                       "\"locked_out\":%s}",
+                       typing_engine_is_typing() ? "true" : "false",
+                       (unsigned long)typing_engine_queue_length(),
+                       s_authenticated ? "true" : "false",
+                       (unsigned long)retry_delay_ms,
+                       locked_out ? "true" : "false");
+    }
+
+    if (len < 0 || len >= (int)sizeof(json)) {
+        return BLE_ATT_ERR_UNLIKELY;
+    }
 
     int rc = os_mbuf_append(ctxt->om, json, len);
     return rc == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
@@ -185,7 +266,34 @@ static int pin_mgmt_access_cb(uint16_t conn_handle, uint16_t attr_handle,
         return BLE_ATT_ERR_UNLIKELY;
     }
 
-    if (strcmp(action->valuestring, "set") == 0) {
+    if (strcmp(action->valuestring, "auth") == 0 ||
+        strcmp(action->valuestring, "verify") == 0) {
+        cJSON *pin = cJSON_GetObjectItem(root, "pin");
+        if (!pin || !cJSON_IsString(pin)) {
+            cJSON_Delete(root);
+            return BLE_ATT_ERR_UNLIKELY;
+        }
+
+        auth_result_t result = auth_verify_pin(pin->valuestring);
+        set_session_auth_result(result);
+        if (result == AUTH_OK) {
+            audit_log_event(AUDIT_AUTH_ATTEMPT, "transport=ble result=success");
+            ESP_LOGI(TAG, "BLE session authenticated");
+        } else {
+            audit_log_event(AUDIT_AUTH_ATTEMPT, "transport=ble result=fail");
+            ESP_LOGW(TAG, "BLE session auth failed: result=%d", (int)result);
+        }
+        notify_status_if_connected();
+    } else if (strcmp(action->valuestring, "logout") == 0) {
+        reset_session_auth();
+        notify_status_if_connected();
+        ESP_LOGI(TAG, "BLE session logged out");
+    } else if (strcmp(action->valuestring, "set") == 0) {
+        if (!s_authenticated) {
+            cJSON_Delete(root);
+            return BLE_ATT_ERR_INSUFFICIENT_AUTHEN;
+        }
+
         cJSON *old_pin = cJSON_GetObjectItem(root, "old");
         cJSON *new_pin = cJSON_GetObjectItem(root, "new");
 
@@ -199,30 +307,44 @@ static int pin_mgmt_access_cb(uint16_t conn_handle, uint16_t attr_handle,
                 ESP_LOGI(TAG, "PIN changed via BLE");
             } else {
                 audit_log_event(AUDIT_AUTH_ATTEMPT, "transport=ble result=fail action=pin_change");
-            }
-        }
-    } else if (strcmp(action->valuestring, "verify") == 0) {
-        cJSON *pin = cJSON_GetObjectItem(root, "pin");
-        if (pin && cJSON_IsString(pin)) {
-            auth_result_t result = auth_verify_pin(pin->valuestring);
-            if (result == AUTH_OK) {
-                audit_log_event(AUDIT_AUTH_ATTEMPT, "transport=ble result=success");
-            } else {
-                audit_log_event(AUDIT_AUTH_ATTEMPT, "transport=ble result=fail");
+                ESP_LOGW(TAG, "PIN change failed: result=%d", (int)result);
             }
         }
     } else if (strcmp(action->valuestring, "set_config") == 0) {
-        cJSON *delay = cJSON_GetObjectItem(root, "typing_delay");
-        if (delay && cJSON_IsNumber(delay)) {
-            typing_engine_set_delay_ms((uint16_t)delay->valueint);
-            nvs_storage_set_u16("config", "typing_delay", (uint16_t)delay->valueint);
+        if (!s_authenticated) {
+            cJSON_Delete(root);
+            return BLE_ATT_ERR_INSUFFICIENT_AUTHEN;
         }
-        cJSON *brightness = cJSON_GetObjectItem(root, "led_brightness");
-        if (brightness && cJSON_IsNumber(brightness)) {
-            neopixel_set_brightness((uint8_t)brightness->valueint);
-            nvs_storage_set_u8("config", "led_brightness", (uint8_t)brightness->valueint);
+
+        cJSON *key = cJSON_GetObjectItem(root, "key");
+        cJSON *value = cJSON_GetObjectItem(root, "value");
+        if (key && value && cJSON_IsString(key) && cJSON_IsString(value)) {
+            int value_num = atoi(value->valuestring);
+            if (strcmp(key->valuestring, "typing_delay") == 0) {
+                typing_engine_set_delay_ms((uint16_t)value_num);
+                nvs_storage_set_u16("config", "typing_delay", (uint16_t)value_num);
+            } else if (strcmp(key->valuestring, "led_brightness") == 0) {
+                neopixel_set_brightness((uint8_t)value_num);
+                nvs_storage_set_u8("config", "led_brightness", (uint8_t)value_num);
+            }
+        } else {
+            cJSON *delay = cJSON_GetObjectItem(root, "typing_delay");
+            if (delay && cJSON_IsNumber(delay)) {
+                typing_engine_set_delay_ms((uint16_t)delay->valueint);
+                nvs_storage_set_u16("config", "typing_delay", (uint16_t)delay->valueint);
+            }
+            cJSON *brightness = cJSON_GetObjectItem(root, "led_brightness");
+            if (brightness && cJSON_IsNumber(brightness)) {
+                neopixel_set_brightness((uint8_t)brightness->valueint);
+                nvs_storage_set_u8("config", "led_brightness", (uint8_t)brightness->valueint);
+            }
         }
     } else if (strcmp(action->valuestring, "get_logs") == 0) {
+        if (!s_authenticated) {
+            cJSON_Delete(root);
+            return BLE_ATT_ERR_INSUFFICIENT_AUTHEN;
+        }
+
         /* Send audit log via status notification */
         char log_buf[512];
         size_t log_len = audit_log_get_entries(log_buf, sizeof(log_buf));
@@ -233,6 +355,10 @@ static int pin_mgmt_access_cb(uint16_t conn_handle, uint16_t attr_handle,
             }
         }
     } else if (strcmp(action->valuestring, "abort") == 0) {
+        if (!s_authenticated) {
+            cJSON_Delete(root);
+            return BLE_ATT_ERR_INSUFFICIENT_AUTHEN;
+        }
         typing_engine_abort();
     }
 
@@ -303,12 +429,10 @@ static int gap_event_handler(struct ble_gap_event *event, void *arg)
     case BLE_GAP_EVENT_CONNECT:
         if (event->connect.status == 0) {
             s_conn_handle = event->connect.conn_handle;
+            reset_session_auth();
             neopixel_set_state(LED_STATE_BLE_CONNECTED);
             audit_log_event(AUDIT_BLE_CONNECT, NULL);
             ESP_LOGI(TAG, "BLE connected (handle=%d)", s_conn_handle);
-
-            /* Initiate security (request encryption) */
-            ble_gap_security_initiate(s_conn_handle);
         } else {
             ESP_LOGW(TAG, "BLE connection failed: status=%d", event->connect.status);
             start_advertising();
@@ -318,6 +442,7 @@ static int gap_event_handler(struct ble_gap_event *event, void *arg)
     case BLE_GAP_EVENT_DISCONNECT:
         ESP_LOGI(TAG, "BLE disconnected (reason=%d)", event->disconnect.reason);
         s_conn_handle = BLE_HS_CONN_HANDLE_NONE;
+        reset_session_auth();
         neopixel_set_state(LED_STATE_OFF);
         audit_log_event(AUDIT_BLE_DISCONNECT, NULL);
         start_advertising();
@@ -418,6 +543,7 @@ esp_err_t ble_server_init(void)
 
     /* Initialize security */
     ble_security_init();
+    reset_session_auth();
 
     /* Initialize GATT services */
     ble_svc_gap_init();
@@ -474,10 +600,15 @@ bool ble_server_is_connected(void)
     return s_conn_handle != BLE_HS_CONN_HANDLE_NONE;
 }
 
-void ble_server_notify_status(void)
+static void notify_status_if_connected(void)
 {
     if (s_conn_handle == BLE_HS_CONN_HANDLE_NONE) return;
     ble_gatts_chr_updated(s_status_val_handle);
+}
+
+void ble_server_notify_status(void)
+{
+    notify_status_if_connected();
 }
 
 void ble_server_notify_progress(uint32_t current, uint32_t total)

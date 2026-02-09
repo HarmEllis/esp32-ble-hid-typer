@@ -14,6 +14,7 @@ import {
   PIN_MANAGEMENT_UUID,
   CERT_FINGERPRINT_UUID,
 } from "../types/protocol";
+import type { DeviceStatus } from "../types/protocol";
 
 export type BleMode = "provisioning" | "normal";
 
@@ -28,6 +29,48 @@ const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
 let currentConnection: BleConnection | null = null;
+let gattOpQueue: Promise<void> = Promise.resolve();
+let characteristicCache = new Map<string, BluetoothRemoteGATTCharacteristic>();
+
+function isGattBusyError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    /GATT operation already in progress/i.test(error.message)
+  );
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function runWithGattBusyRetry<T>(
+  operation: () => Promise<T>
+): Promise<T> {
+  let waitMs = 120;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await operation();
+    } catch (error) {
+      if (!isGattBusyError(error) || attempt >= 10) {
+        throw error;
+      }
+      await delay(waitMs);
+      waitMs = Math.min(waitMs + 120, 1500);
+    }
+  }
+}
+
+async function runGattOp<T>(operation: () => Promise<T>): Promise<T> {
+  const chained = gattOpQueue.then(
+    () => runWithGattBusyRetry(operation),
+    () => runWithGattBusyRetry(operation)
+  );
+  gattOpQueue = chained.then(
+    () => undefined,
+    () => undefined
+  );
+  return chained;
+}
 
 function getServiceUuid(mode: BleMode): string {
   return mode === "provisioning"
@@ -39,6 +82,22 @@ function getDeviceName(mode: BleMode): string {
   return mode === "provisioning"
     ? PROVISIONING_DEVICE_NAME
     : NORMAL_DEVICE_NAME;
+}
+
+async function getCharacteristicCached(
+  uuid: string
+): Promise<BluetoothRemoteGATTCharacteristic> {
+  const cached = characteristicCache.get(uuid);
+  if (cached) {
+    return cached;
+  }
+
+  const conn = getConnection();
+  if (!conn) throw new Error("Not connected");
+
+  const char = await conn.service.getCharacteristic(uuid);
+  characteristicCache.set(uuid, char);
+  return char;
 }
 
 export async function scanAndConnect(mode: BleMode): Promise<BleConnection> {
@@ -53,9 +112,13 @@ export async function scanAndConnect(mode: BleMode): Promise<BleConnection> {
   const service = await server.getPrimaryService(serviceUuid);
 
   currentConnection = { device, server, service, mode };
+  gattOpQueue = Promise.resolve();
+  characteristicCache = new Map<string, BluetoothRemoteGATTCharacteristic>();
 
   device.addEventListener("gattserverdisconnected", () => {
     currentConnection = null;
+    gattOpQueue = Promise.resolve();
+    characteristicCache = new Map<string, BluetoothRemoteGATTCharacteristic>();
   });
 
   return currentConnection;
@@ -77,45 +140,47 @@ export async function disconnect(): Promise<void> {
     currentConnection.server.disconnect();
   }
   currentConnection = null;
+  gattOpQueue = Promise.resolve();
+  characteristicCache = new Map<string, BluetoothRemoteGATTCharacteristic>();
 }
 
 export async function readCharacteristic(uuid: string): Promise<string> {
-  const conn = getConnection();
-  if (!conn) throw new Error("Not connected");
-  const char = await conn.service.getCharacteristic(uuid);
-  const value = await char.readValue();
-  return decoder.decode(value);
+  return runGattOp(async () => {
+    const char = await getCharacteristicCached(uuid);
+    const value = await char.readValue();
+    return decoder.decode(value);
+  });
 }
 
 export async function writeCharacteristic(
   uuid: string,
   data: string
 ): Promise<void> {
-  const conn = getConnection();
-  if (!conn) throw new Error("Not connected");
-  const char = await conn.service.getCharacteristic(uuid);
-  const encoded = encoder.encode(data);
+  await runGattOp(async () => {
+    const char = await getCharacteristicCached(uuid);
+    const encoded = encoder.encode(data);
 
-  /* Chunk writes for data > 512 bytes */
-  const MTU = 512;
-  for (let offset = 0; offset < encoded.length; offset += MTU) {
-    const chunk = encoded.slice(offset, offset + MTU);
-    await char.writeValueWithResponse(chunk);
-  }
+    /* Chunk writes for data > 512 bytes */
+    const MTU = 512;
+    for (let offset = 0; offset < encoded.length; offset += MTU) {
+      const chunk = encoded.slice(offset, offset + MTU);
+      await char.writeValueWithResponse(chunk);
+    }
+  });
 }
 
 export async function startNotifications(
   uuid: string,
   callback: (value: string) => void
 ): Promise<void> {
-  const conn = getConnection();
-  if (!conn) throw new Error("Not connected");
-  const char = await conn.service.getCharacteristic(uuid);
-  char.addEventListener("characteristicvaluechanged", (event) => {
-    const target = event.target as BluetoothRemoteGATTCharacteristic;
-    callback(decoder.decode(target.value!));
+  await runGattOp(async () => {
+    const char = await getCharacteristicCached(uuid);
+    char.addEventListener("characteristicvaluechanged", (event) => {
+      const target = event.target as BluetoothRemoteGATTCharacteristic;
+      callback(decoder.decode(target.value!));
+    });
+    await char.startNotifications();
   });
-  await char.startNotifications();
 }
 
 /* Provisioning helpers */
@@ -128,9 +193,13 @@ export async function sendProvisioningCommand(
     throw new Error("Not in provisioning mode");
 
   /* Set up result notification listener before writing command */
-  const resultChar = await conn.service.getCharacteristic(
-    PROVISIONING_RPC_RESULT_UUID
-  );
+  const resultChar = await runGattOp(async () => {
+    const activeConn = getConnection();
+    if (!activeConn || activeConn.mode !== "provisioning") {
+      throw new Error("Not in provisioning mode");
+    }
+    return activeConn.service.getCharacteristic(PROVISIONING_RPC_RESULT_UUID);
+  });
 
   const resultPromise = new Promise<string>((resolve) => {
     const handler = (event: Event) => {
@@ -142,7 +211,9 @@ export async function sendProvisioningCommand(
     resultChar.addEventListener("characteristicvaluechanged", handler);
   });
 
-  await resultChar.startNotifications();
+  await runGattOp(async () => {
+    await resultChar.startNotifications();
+  });
   await writeCharacteristic(PROVISIONING_RPC_COMMAND_UUID, JSON.stringify(command));
 
   return resultPromise;
@@ -168,8 +239,33 @@ export async function readStatus(): Promise<string> {
   return readCharacteristic(STATUS_UUID);
 }
 
+export async function readStatusObject(): Promise<DeviceStatus> {
+  const payload = await readStatus();
+  return JSON.parse(payload) as DeviceStatus;
+}
+
 export async function sendPinAction(action: object): Promise<void> {
   await writeCharacteristic(PIN_MANAGEMENT_UUID, JSON.stringify(action));
+}
+
+export async function authenticate(pin: string): Promise<DeviceStatus> {
+  return runGattOp(async () => {
+    const pinChar = await getCharacteristicCached(PIN_MANAGEMENT_UUID);
+    const statusChar = await getCharacteristicCached(STATUS_UUID);
+    const payload = encoder.encode(JSON.stringify({ action: "auth", pin }));
+
+    await pinChar.writeValueWithResponse(payload);
+
+    /* Give firmware a short window to process auth and update status. */
+    await delay(120);
+
+    const value = await statusChar.readValue();
+    return JSON.parse(decoder.decode(value)) as DeviceStatus;
+  });
+}
+
+export async function logout(): Promise<void> {
+  await sendPinAction({ action: "logout" });
 }
 
 export async function readCertFingerprint(): Promise<string> {

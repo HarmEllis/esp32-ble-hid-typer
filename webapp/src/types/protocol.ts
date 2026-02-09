@@ -65,6 +65,10 @@ export interface DeviceStatus {
   connected: boolean;
   typing: boolean;
   queue: number;
+  authenticated: boolean;
+  retry_delay_ms: number;
+  locked_out: boolean;
+  auth_error?: "invalid_pin" | "rate_limited" | "locked_out";
 }
 
 export interface PinSetAction {
@@ -76,6 +80,15 @@ export interface PinSetAction {
 export interface PinVerifyAction {
   action: "verify";
   pin: string;
+}
+
+export interface PinAuthAction {
+  action: "auth";
+  pin: string;
+}
+
+export interface PinLogoutAction {
+  action: "logout";
 }
 
 export interface SetConfigAction {
@@ -94,6 +107,8 @@ export interface AbortAction {
 
 export type PinManagementAction =
   | PinSetAction
+  | PinAuthAction
+  | PinLogoutAction
   | PinVerifyAction
   | SetConfigAction
   | GetLogsAction

@@ -6,16 +6,33 @@ export function StatusBar() {
   const [status, setStatus] = useState<DeviceStatus | null>(null);
   const [connected, setConnected] = useState(ble.isConnected());
 
+  const applyUpdate = (update: Partial<DeviceStatus>) => {
+    setStatus((prev) => {
+      const base: DeviceStatus = prev ?? {
+        connected: true,
+        typing: false,
+        queue: 0,
+        authenticated: false,
+        retry_delay_ms: 0,
+        locked_out: false,
+      };
+      return { ...base, ...update };
+    });
+    setConnected(true);
+  };
+
   useEffect(() => {
     const conn = ble.getConnection();
     if (!conn || conn.mode !== "normal") return;
 
     ble.onStatusChange((value) => {
       try {
-        setStatus(JSON.parse(value));
+        applyUpdate(JSON.parse(value) as Partial<DeviceStatus>);
       } catch {
         /* ignore parse errors */
       }
+    }).catch(() => {
+      /* Subscription may fail during security negotiation */
     });
 
     ble.onDisconnect(() => {
@@ -23,14 +40,15 @@ export function StatusBar() {
       setStatus(null);
     });
 
-    /* Initial read */
-    ble.readStatus().then((value) => {
+    /* Initial read — may fail if security is still being established */
+    ble.readStatusObject().then((value) => {
       try {
-        setStatus(JSON.parse(value));
-        setConnected(true);
+        applyUpdate(value);
       } catch {
-        /* ignore */
+        /* ignore parse errors */
       }
+    }).catch(() => {
+      /* Read may fail during security negotiation */
     });
   }, []);
 
@@ -47,6 +65,28 @@ export function StatusBar() {
       }}
     >
       <span style={{ color: "#4ade80" }}>Connected</span>
+      {status && (
+        <>
+          <span style={{ margin: "0 0.5rem" }}>|</span>
+          <span style={{ color: status.authenticated ? "#22c55e" : "#f59e0b" }}>
+            {status.authenticated ? "Unlocked" : "Locked"}
+          </span>
+        </>
+      )}
+      {status && !status.authenticated && status.retry_delay_ms > 0 && (
+        <>
+          <span style={{ margin: "0 0.5rem" }}>|</span>
+          <span style={{ color: "#f97316" }}>
+            Retry in {Math.ceil(status.retry_delay_ms / 1000)}s
+          </span>
+        </>
+      )}
+      {status?.locked_out && (
+        <>
+          <span style={{ margin: "0 0.5rem" }}>|</span>
+          <span style={{ color: "#ef4444" }}>Lockout active</span>
+        </>
+      )}
       {status?.typing && (
         <>
           <span style={{ margin: "0 0.5rem" }}>|</span>

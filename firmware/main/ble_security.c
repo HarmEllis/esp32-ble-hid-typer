@@ -24,15 +24,21 @@ esp_err_t ble_security_init(void)
         ESP_LOGW(TAG, "Could not load PIN for passkey");
     }
 
-    /* Configure Security Manager */
-    ble_hs_cfg.sm_io_cap = BLE_SM_IO_CAP_DISP_ONLY;
-    ble_hs_cfg.sm_bonding = 1;
-    ble_hs_cfg.sm_mitm = 1;
-    ble_hs_cfg.sm_sc = 1;
-    ble_hs_cfg.sm_our_key_dist = BLE_SM_PAIR_KEY_DIST_ENC | BLE_SM_PAIR_KEY_DIST_ID;
-    ble_hs_cfg.sm_their_key_dist = BLE_SM_PAIR_KEY_DIST_ENC | BLE_SM_PAIR_KEY_DIST_ID;
+    /* Configure Security Manager.
+     *
+     * In normal mode we rely on app-layer PIN auth and do not require link-
+     * level pairing/bonding. This avoids browser-specific pairing behavior
+     * that causes disconnect loops with Web Bluetooth.
+     */
+    ble_hs_cfg.sm_io_cap = BLE_SM_IO_CAP_NO_IO;
+    ble_hs_cfg.sm_bonding = 0;
+    ble_hs_cfg.sm_mitm = 0;
+    ble_hs_cfg.sm_sc = 0;
+    ble_hs_cfg.sm_our_key_dist = 0;
+    ble_hs_cfg.sm_their_key_dist = 0;
 
-    ESP_LOGI(TAG, "BLE security initialized (SC+MITM, passkey=%06lu)", (unsigned long)s_passkey);
+    ESP_LOGI(TAG, "BLE security initialized (app-layer auth mode, passkey=%06lu)",
+             (unsigned long)s_passkey);
     return ESP_OK;
 }
 
@@ -44,6 +50,8 @@ void ble_security_set_passkey(uint32_t passkey)
 
 int ble_security_gap_event(struct ble_gap_event *event, void *arg)
 {
+    (void)arg;
+
     switch (event->type) {
     case BLE_GAP_EVENT_PASSKEY_ACTION: {
         struct ble_sm_io pkey = {0};
@@ -56,6 +64,13 @@ int ble_security_gap_event(struct ble_gap_event *event, void *arg)
                 ESP_LOGE(TAG, "Error injecting passkey: rc=%d", rc);
             } else {
                 ESP_LOGI(TAG, "Passkey displayed: %06lu", (unsigned long)s_passkey);
+            }
+        } else if (event->passkey.params.action == BLE_SM_IOACT_INPUT) {
+            pkey.action = BLE_SM_IOACT_INPUT;
+            pkey.passkey = s_passkey;
+            int rc = ble_sm_inject_io(event->passkey.conn_handle, &pkey);
+            if (rc != 0) {
+                ESP_LOGE(TAG, "Error injecting input passkey: rc=%d", rc);
             }
         } else if (event->passkey.params.action == BLE_SM_IOACT_NUMCMP) {
             pkey.action = BLE_SM_IOACT_NUMCMP;
@@ -80,7 +95,19 @@ int ble_security_gap_event(struct ble_gap_event *event, void *arg)
         if (event->enc_change.status == 0) {
             ESP_LOGI(TAG, "Encryption enabled (conn=%d)", event->enc_change.conn_handle);
         } else {
-            ESP_LOGW(TAG, "Encryption change failed: status=%d", event->enc_change.status);
+            ESP_LOGW(TAG, "Encryption change failed (conn=%d, status=%d)",
+                     event->enc_change.conn_handle, event->enc_change.status);
+
+            /* Keep the connection alive. Web Bluetooth stacks may recover by
+             * re-pairing when an encrypted characteristic is accessed. */
+            struct ble_gap_conn_desc desc;
+            int rc = ble_gap_conn_find(event->enc_change.conn_handle, &desc);
+            if (rc == 0) {
+                ble_store_util_delete_peer(&desc.peer_id_addr);
+                ESP_LOGI(TAG, "Deleted stale bond after encryption failure");
+            } else {
+                ESP_LOGW(TAG, "Could not inspect conn for stale bond cleanup: rc=%d", rc);
+            }
         }
         return 0;
     }

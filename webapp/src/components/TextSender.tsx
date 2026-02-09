@@ -10,12 +10,24 @@ export function TextSender(_props: RoutableProps) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const [connected, setConnected] = useState(true);
+  const [checkingAuth, setCheckingAuth] = useState(true);
 
   useEffect(() => {
     if (!ble.isConnected()) {
       nav("/connect");
       return;
     }
+
+    ble.readStatusObject().then((status) => {
+      if (!status.authenticated) {
+        nav("/connect");
+        return;
+      }
+      setCheckingAuth(false);
+    }).catch(() => {
+      nav("/connect");
+    });
+
     ble.onDisconnect(() => {
       setConnected(false);
     });
@@ -67,6 +79,15 @@ export function TextSender(_props: RoutableProps) {
         >
           Reconnect
         </button>
+      </div>
+    );
+  }
+
+  if (checkingAuth) {
+    return (
+      <div style={{ padding: "2rem", maxWidth: "600px", margin: "0 auto" }}>
+        <h2>Authorizing</h2>
+        <p style={{ color: "#94a3b8" }}>Checking device unlock state...</p>
       </div>
     );
   }
