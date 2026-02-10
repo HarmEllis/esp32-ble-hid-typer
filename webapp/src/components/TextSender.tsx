@@ -5,9 +5,17 @@ import { StatusBar } from "./StatusBar";
 import { ClipboardPaste } from "./ClipboardPaste";
 import { nav } from "../utils/nav";
 
+const CTRL_ALT_MODIFIER = 0x01 | 0x04;
+const CTRL_ALT_FUNCTION_SHORTCUTS = Array.from({ length: 12 }, (_, index) => ({
+  label: `Ctrl+Alt+F${index + 1}`,
+  modifier: CTRL_ALT_MODIFIER,
+  keycode: 0x3a + index,
+}));
+
 export function TextSender(_props: RoutableProps) {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  const [sendingSpecial, setSendingSpecial] = useState(false);
   const [error, setError] = useState("");
   const [connected, setConnected] = useState(true);
   const [checkingAuth, setCheckingAuth] = useState(true);
@@ -52,6 +60,32 @@ export function TextSender(_props: RoutableProps) {
       await ble.sendPinAction({ action: "abort" });
     } catch {
       /* ignore */
+    }
+  };
+
+  const handleSpecialKey = async (payload: string) => {
+    if (sendingSpecial || sending) return;
+    setError("");
+    setSendingSpecial(true);
+    try {
+      await ble.sendText(payload);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to send special key");
+    } finally {
+      setSendingSpecial(false);
+    }
+  };
+
+  const handleShortcut = async (modifier: number, keycode: number) => {
+    if (sendingSpecial || sending) return;
+    setError("");
+    setSendingSpecial(true);
+    try {
+      await ble.sendPinAction({ action: "key_combo", modifier, keycode });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to send shortcut");
+    } finally {
+      setSendingSpecial(false);
     }
   };
 
@@ -167,37 +201,127 @@ export function TextSender(_props: RoutableProps) {
       >
         <button
           onClick={handleSend}
-          disabled={sending || !text.trim()}
+          disabled={sending || sendingSpecial || !text.trim()}
           style={{
             padding: "0.5rem 1.5rem",
             background: "#3b82f6",
             color: "white",
             border: "none",
             borderRadius: "6px",
-            cursor: sending || !text.trim() ? "not-allowed" : "pointer",
-            opacity: sending || !text.trim() ? 0.5 : 1,
+            cursor: sending || sendingSpecial || !text.trim() ? "not-allowed" : "pointer",
+            opacity: sending || sendingSpecial || !text.trim() ? 0.5 : 1,
             fontSize: "1rem",
           }}
         >
           {sending ? "Sending..." : "Send"}
         </button>
 
-        <ClipboardPaste disabled={sending} />
+        <ClipboardPaste disabled={sending || sendingSpecial} />
 
         <button
           onClick={handleAbort}
+          disabled={sendingSpecial}
           style={{
             padding: "0.5rem 1rem",
             background: "#dc2626",
             color: "white",
             border: "none",
             borderRadius: "6px",
-            cursor: "pointer",
+            cursor: sendingSpecial ? "not-allowed" : "pointer",
+            opacity: sendingSpecial ? 0.5 : 1,
           }}
         >
           Abort
         </button>
       </div>
+
+      <div
+        style={{
+          display: "flex",
+          gap: "0.5rem",
+          marginTop: "0.75rem",
+          flexWrap: "wrap",
+        }}
+      >
+        <button
+          onClick={() => handleSpecialKey("\b")}
+          disabled={sending || sendingSpecial}
+          style={{
+            padding: "0.45rem 0.9rem",
+            background: "#374151",
+            color: "white",
+            border: "none",
+            borderRadius: "6px",
+            cursor: sending || sendingSpecial ? "not-allowed" : "pointer",
+            opacity: sending || sendingSpecial ? 0.5 : 1,
+          }}
+        >
+          Backspace
+        </button>
+        <button
+          onClick={() => handleSpecialKey("\u007f")}
+          disabled={sending || sendingSpecial}
+          style={{
+            padding: "0.45rem 0.9rem",
+            background: "#374151",
+            color: "white",
+            border: "none",
+            borderRadius: "6px",
+            cursor: sending || sendingSpecial ? "not-allowed" : "pointer",
+            opacity: sending || sendingSpecial ? 0.5 : 1,
+          }}
+        >
+          Delete
+        </button>
+        <button
+          onClick={() => handleSpecialKey("\n")}
+          disabled={sending || sendingSpecial}
+          style={{
+            padding: "0.45rem 0.9rem",
+            background: "#374151",
+            color: "white",
+            border: "none",
+            borderRadius: "6px",
+            cursor: sending || sendingSpecial ? "not-allowed" : "pointer",
+            opacity: sending || sendingSpecial ? 0.5 : 1,
+          }}
+        >
+          Enter
+        </button>
+      </div>
+
+      <details style={{ marginTop: "1rem" }}>
+        <summary style={{ cursor: "pointer", color: "#94a3b8" }}>
+          Shortcuts
+        </summary>
+        <div
+          style={{
+            marginTop: "0.75rem",
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+            gap: "0.5rem",
+          }}
+        >
+          {CTRL_ALT_FUNCTION_SHORTCUTS.map((shortcut) => (
+            <button
+              key={shortcut.label}
+              onClick={() => handleShortcut(shortcut.modifier, shortcut.keycode)}
+              disabled={sending || sendingSpecial}
+              style={{
+                padding: "0.45rem 0.75rem",
+                background: "#1e293b",
+                color: "#cbd5e1",
+                border: "1px solid #334155",
+                borderRadius: "6px",
+                cursor: sending || sendingSpecial ? "not-allowed" : "pointer",
+                opacity: sending || sendingSpecial ? 0.5 : 1,
+              }}
+            >
+              {shortcut.label}
+            </button>
+          ))}
+        </div>
+      </details>
 
       {error && <p style={{ color: "#ef4444", marginTop: "1rem" }}>{error}</p>}
 

@@ -5,8 +5,11 @@
 #include "audit_log.h"
 #include "neopixel.h"
 #include "nvs_storage.h"
+#include "usb_hid.h"
 
 #include "esp_log.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "nimble/nimble_port.h"
 #include "nimble/nimble_port_freertos.h"
 #include "host/ble_hs.h"
@@ -84,6 +87,21 @@ static int wifi_config_access_cb(uint16_t conn_handle, uint16_t attr_handle,
 static int cert_fp_access_cb(uint16_t conn_handle, uint16_t attr_handle,
                               struct ble_gatt_access_ctxt *ctxt, void *arg);
 static void notify_status_if_connected(void);
+
+static esp_err_t send_key_combo(uint8_t modifier, uint8_t keycode)
+{
+    if (!usb_hid_ready()) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    esp_err_t err = usb_hid_send_key(modifier, keycode);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    vTaskDelay(pdMS_TO_TICKS(6));
+    return usb_hid_release_keys();
+}
 
 static void reset_session_auth(void)
 {
@@ -360,6 +378,31 @@ static int pin_mgmt_access_cb(uint16_t conn_handle, uint16_t attr_handle,
             return BLE_ATT_ERR_INSUFFICIENT_AUTHEN;
         }
         typing_engine_abort();
+    } else if (strcmp(action->valuestring, "key_combo") == 0) {
+        if (!s_authenticated) {
+            cJSON_Delete(root);
+            return BLE_ATT_ERR_INSUFFICIENT_AUTHEN;
+        }
+
+        cJSON *modifier = cJSON_GetObjectItem(root, "modifier");
+        cJSON *keycode = cJSON_GetObjectItem(root, "keycode");
+        if (!modifier || !cJSON_IsNumber(modifier) || !keycode || !cJSON_IsNumber(keycode)) {
+            cJSON_Delete(root);
+            return BLE_ATT_ERR_UNLIKELY;
+        }
+
+        int mod = modifier->valueint;
+        int key = keycode->valueint;
+        if (mod < 0 || mod > 255 || key < 0 || key > 255) {
+            cJSON_Delete(root);
+            return BLE_ATT_ERR_UNLIKELY;
+        }
+
+        esp_err_t combo_err = send_key_combo((uint8_t)mod, (uint8_t)key);
+        if (combo_err != ESP_OK) {
+            cJSON_Delete(root);
+            return BLE_ATT_ERR_UNLIKELY;
+        }
     }
 
     cJSON_Delete(root);

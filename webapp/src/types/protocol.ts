@@ -97,6 +97,12 @@ export interface AbortAction {
   action: "abort";
 }
 
+export interface KeyComboAction {
+  action: "key_combo";
+  modifier: number;
+  keycode: number;
+}
+
 export type PinManagementAction =
   | PinSetAction
   | PinAuthAction
@@ -104,4 +110,5 @@ export type PinManagementAction =
   | PinVerifyAction
   | SetConfigAction
   | GetLogsAction
-  | AbortAction;
+  | AbortAction
+  | KeyComboAction;
