@@ -238,7 +238,7 @@ static int status_access_cb(uint16_t conn_handle, uint16_t attr_handle,
                        typing_engine_is_typing() ? "true" : "false",
                        (unsigned long)typing_engine_queue_length(),
                        s_authenticated ? "true" : "false",
-                       usb_hid_ready() ? "true" : "false",
+                       usb_hid_connected() ? "true" : "false",
                        (unsigned long)retry_delay_ms,
                        locked_out ? "true" : "false",
                        auth_error);
@@ -250,7 +250,7 @@ static int status_access_cb(uint16_t conn_handle, uint16_t attr_handle,
                        typing_engine_is_typing() ? "true" : "false",
                        (unsigned long)typing_engine_queue_length(),
                        s_authenticated ? "true" : "false",
-                       usb_hid_ready() ? "true" : "false",
+                       usb_hid_connected() ? "true" : "false",
                        (unsigned long)retry_delay_ms,
                        locked_out ? "true" : "false");
     }

@@ -16,5 +16,5 @@
 [x] The small keyboard has {left} and {right} instead of arrow left and right icons like the full keyboard, fix this
 [x] Enable SysRq commands (advanced) does not show the collapsed SysRq commands section, I expected them below shortcuts
 [x] Wait with applying setting changes until mouse up event to prevent a laggy ux
-[ ] While typing the 'Keyboard not mounted' message is shown while I can see it is typing correctly; when finished typing the keyboard is ready again
+[x] While typing the 'Keyboard not mounted' message is shown while I can see it is typing correctly; when finished typing the keyboard is ready again
 [ ] Rename 'Keyboard not mounted' to 'Not connected to device as keyboard'

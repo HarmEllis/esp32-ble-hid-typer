@@ -99,6 +99,11 @@ bool usb_hid_ready(void)
     return tud_mounted() && tud_hid_ready();
 }
 
+bool usb_hid_connected(void)
+{
+    return tud_mounted();
+}
+
 esp_err_t usb_hid_send_key(uint8_t modifier, uint8_t keycode)
 {
     if (!tud_mounted()) return ESP_ERR_INVALID_STATE;
