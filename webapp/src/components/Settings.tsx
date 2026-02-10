@@ -1,4 +1,4 @@
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import { RoutableProps } from "preact-router";
 import * as ble from "../utils/ble";
 import * as storage from "../utils/storage";
@@ -12,6 +12,8 @@ export function Settings(_props: RoutableProps) {
   const [status, setStatus] = useState("");
   const [connected, setConnected] = useState(false);
   const [checkingAccess, setCheckingAccess] = useState(true);
+  const appliedTypingDelayRef = useRef(typingDelay);
+  const appliedLedBrightnessRef = useRef(ledBrightness);
 
   useEffect(() => {
     if (!ble.isConnected()) {
@@ -39,7 +41,8 @@ export function Settings(_props: RoutableProps) {
     });
   }, []);
 
-  const handleTypingDelayChange = async (ms: number) => {
+  const applyTypingDelayChange = async (ms: number) => {
+    if (ms === appliedTypingDelayRef.current) return;
     if (!connected) {
       setStatus("Device is not connected");
       return;
@@ -51,15 +54,17 @@ export function Settings(_props: RoutableProps) {
         key: "typing_delay",
         value: String(ms),
       });
-      setTypingDelay(ms);
+      appliedTypingDelayRef.current = ms;
       storage.setTypingDelay(ms);
       setStatus("Typing delay updated");
     } catch {
+      setTypingDelay(appliedTypingDelayRef.current);
       setStatus("Failed to update typing delay");
     }
   };
 
-  const handleBrightnessChange = async (percent: number) => {
+  const applyBrightnessChange = async (percent: number) => {
+    if (percent === appliedLedBrightnessRef.current) return;
     if (!connected) {
       setStatus("Device is not connected");
       return;
@@ -71,10 +76,11 @@ export function Settings(_props: RoutableProps) {
         key: "led_brightness",
         value: String(percent),
       });
-      setLedBrightness(percent);
+      appliedLedBrightnessRef.current = percent;
       storage.setLedBrightness(percent);
       setStatus("LED brightness updated");
     } catch {
+      setLedBrightness(appliedLedBrightnessRef.current);
       setStatus("Failed to update LED brightness");
     }
   };
@@ -108,8 +114,19 @@ export function Settings(_props: RoutableProps) {
           value={typingDelay}
           disabled={!connected}
           onInput={(e) =>
-            handleTypingDelayChange(Number((e.target as HTMLInputElement).value))
+            setTypingDelay(Number((e.target as HTMLInputElement).value))
           }
+          onMouseUp={() => {
+            void applyTypingDelayChange(typingDelay);
+          }}
+          onTouchEnd={() => {
+            void applyTypingDelayChange(typingDelay);
+          }}
+          onChange={(e) => {
+            const value = Number((e.target as HTMLInputElement).value);
+            setTypingDelay(value);
+            void applyTypingDelayChange(value);
+          }}
           style={{ width: "100%" }}
         />
         <div
@@ -136,8 +153,19 @@ export function Settings(_props: RoutableProps) {
           value={ledBrightness}
           disabled={!connected}
           onInput={(e) =>
-            handleBrightnessChange(Number((e.target as HTMLInputElement).value))
+            setLedBrightness(Number((e.target as HTMLInputElement).value))
           }
+          onMouseUp={() => {
+            void applyBrightnessChange(ledBrightness);
+          }}
+          onTouchEnd={() => {
+            void applyBrightnessChange(ledBrightness);
+          }}
+          onChange={(e) => {
+            const value = Number((e.target as HTMLInputElement).value);
+            setLedBrightness(value);
+            void applyBrightnessChange(value);
+          }}
           style={{ width: "100%" }}
         />
       </div>
