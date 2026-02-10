@@ -52,20 +52,6 @@ export function ConnectionScreen(_props: RoutableProps) {
           Flash Firmware
         </button>
 
-        <button
-          onClick={() => nav("/settings")}
-          style={{
-            padding: "1rem",
-            background: "#1e293b",
-            color: "#94a3b8",
-            border: "1px solid #334155",
-            borderRadius: "8px",
-            fontSize: "1rem",
-            cursor: "pointer",
-          }}
-        >
-          Settings
-        </button>
       </div>
     </div>
   );

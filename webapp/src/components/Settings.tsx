@@ -1,4 +1,4 @@
-import { useState } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import { RoutableProps } from "preact-router";
 import * as ble from "../utils/ble";
 import * as storage from "../utils/storage";
@@ -10,38 +10,72 @@ export function Settings(_props: RoutableProps) {
   const [ledBrightness, setLedBrightness] = useState(storage.getLedBrightness());
   const [sysrqEnabled, setSysrqEnabled] = useState(storage.getSysRqEnabled());
   const [status, setStatus] = useState("");
+  const [connected, setConnected] = useState(false);
+  const [checkingAccess, setCheckingAccess] = useState(true);
+
+  useEffect(() => {
+    if (!ble.isConnected()) {
+      nav("/connect");
+      return;
+    }
+
+    ble
+      .readStatusObject()
+      .then((deviceStatus) => {
+        if (!deviceStatus.authenticated) {
+          nav("/connect");
+          return;
+        }
+        setConnected(true);
+        setCheckingAccess(false);
+      })
+      .catch(() => {
+        nav("/connect");
+      });
+
+    ble.onDisconnect(() => {
+      setConnected(false);
+      nav("/connect");
+    });
+  }, []);
 
   const handleTypingDelayChange = async (ms: number) => {
-    setTypingDelay(ms);
-    storage.setTypingDelay(ms);
-    if (ble.isConnected()) {
-      try {
-        await ble.sendPinAction({
-          action: "set_config",
-          key: "typing_delay",
-          value: String(ms),
-        });
-        setStatus("Typing delay updated");
-      } catch {
-        setStatus("Saved locally (device not connected)");
-      }
+    if (!connected) {
+      setStatus("Device is not connected");
+      return;
+    }
+
+    try {
+      await ble.sendPinAction({
+        action: "set_config",
+        key: "typing_delay",
+        value: String(ms),
+      });
+      setTypingDelay(ms);
+      storage.setTypingDelay(ms);
+      setStatus("Typing delay updated");
+    } catch {
+      setStatus("Failed to update typing delay");
     }
   };
 
   const handleBrightnessChange = async (percent: number) => {
-    setLedBrightness(percent);
-    storage.setLedBrightness(percent);
-    if (ble.isConnected()) {
-      try {
-        await ble.sendPinAction({
-          action: "set_config",
-          key: "led_brightness",
-          value: String(percent),
-        });
-        setStatus("LED brightness updated");
-      } catch {
-        setStatus("Saved locally (device not connected)");
-      }
+    if (!connected) {
+      setStatus("Device is not connected");
+      return;
+    }
+
+    try {
+      await ble.sendPinAction({
+        action: "set_config",
+        key: "led_brightness",
+        value: String(percent),
+      });
+      setLedBrightness(percent);
+      storage.setLedBrightness(percent);
+      setStatus("LED brightness updated");
+    } catch {
+      setStatus("Failed to update LED brightness");
     }
   };
 
@@ -49,6 +83,15 @@ export function Settings(_props: RoutableProps) {
     setSysrqEnabled(enabled);
     storage.setSysRqEnabled(enabled);
   };
+
+  if (checkingAccess) {
+    return (
+      <div style={{ padding: "2rem", maxWidth: "500px", margin: "0 auto" }}>
+        <PageHeader title="Settings" />
+        <p style={{ color: "#94a3b8" }}>Checking device access...</p>
+      </div>
+    );
+  }
 
   return (
     <div style={{ padding: "2rem", maxWidth: "500px", margin: "0 auto" }}>
@@ -63,6 +106,7 @@ export function Settings(_props: RoutableProps) {
           min={5}
           max={100}
           value={typingDelay}
+          disabled={!connected}
           onInput={(e) =>
             handleTypingDelayChange(Number((e.target as HTMLInputElement).value))
           }
@@ -90,6 +134,7 @@ export function Settings(_props: RoutableProps) {
           min={1}
           max={100}
           value={ledBrightness}
+          disabled={!connected}
           onInput={(e) =>
             handleBrightnessChange(Number((e.target as HTMLInputElement).value))
           }
