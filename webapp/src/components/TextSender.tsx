@@ -3,7 +3,11 @@ import { RoutableProps } from "preact-router";
 import * as ble from "../utils/ble";
 import { StatusBar } from "./StatusBar";
 import { ClipboardPaste } from "./ClipboardPaste";
-import { VirtualKeyboard, type VirtualSpecialKey } from "./VirtualKeyboard";
+import {
+  VirtualKeyboard,
+  type VirtualSpecialKey,
+  type KeyboardLayoutVariant,
+} from "./VirtualKeyboard";
 import { nav } from "../utils/nav";
 
 const CTRL_ALT_MODIFIER = 0x01 | 0x04;
@@ -35,6 +39,8 @@ export function TextSender(_props: RoutableProps) {
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [keyboardConnected, setKeyboardConnected] = useState(true);
   const [typingActive, setTypingActive] = useState(false);
+  const [keyboardLayoutVariant, setKeyboardLayoutVariant] =
+    useState<KeyboardLayoutVariant>("simple");
 
   useEffect(() => {
     if (!ble.isConnected()) {
@@ -159,6 +165,66 @@ export function TextSender(_props: RoutableProps) {
   };
 
   const handleVirtualSpecialKey = async (key: VirtualSpecialKey) => {
+    if (key === "escape") {
+      await handleShortcut(0, 0x29);
+      return;
+    }
+    if (key === "print_screen") {
+      await handleShortcut(0, 0x46);
+      return;
+    }
+    if (key === "scroll_lock") {
+      await handleShortcut(0, 0x47);
+      return;
+    }
+    if (key === "pause") {
+      await handleShortcut(0, 0x48);
+      return;
+    }
+    if (key === "ctrl") {
+      await handleShortcut(0x01, 0x00);
+      return;
+    }
+    if (key === "alt") {
+      await handleShortcut(0x04, 0x00);
+      return;
+    }
+    if (key === "cmd") {
+      await handleShortcut(0x08, 0x00);
+      return;
+    }
+    if (key === "insert") {
+      await handleShortcut(0, 0x49);
+      return;
+    }
+    if (key === "delete") {
+      await handleShortcut(0, 0x4c);
+      return;
+    }
+    if (key === "page_up") {
+      await handleShortcut(0, 0x4b);
+      return;
+    }
+    if (key === "page_down") {
+      await handleShortcut(0, 0x4e);
+      return;
+    }
+    if (key === "up") {
+      await handleShortcut(0, 0x52);
+      return;
+    }
+    if (key === "down") {
+      await handleShortcut(0, 0x51);
+      return;
+    }
+
+    const functionMatch = key.match(/^f(1[0-2]|[1-9])$/);
+    if (functionMatch) {
+      const functionIndex = Number(functionMatch[1]);
+      await handleShortcut(0, 0x39 + functionIndex);
+      return;
+    }
+
     if (key === "backspace") {
       await handleSpecialKey("\b");
       return;
@@ -491,8 +557,40 @@ export function TextSender(_props: RoutableProps) {
         <summary style={{ cursor: "pointer", color: "#94a3b8" }}>
           Virtual Keyboard
         </summary>
+        <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.75rem" }}>
+          <button
+            onClick={() => setKeyboardLayoutVariant("simple")}
+            style={{
+              padding: "0.3rem 0.7rem",
+              background: keyboardLayoutVariant === "simple" ? "#3b82f6" : "#1e293b",
+              color: "white",
+              border: "1px solid #334155",
+              borderRadius: "6px",
+              cursor: "pointer",
+              fontSize: "0.85rem",
+            }}
+          >
+            Simple
+          </button>
+          <button
+            onClick={() => setKeyboardLayoutVariant("full")}
+            style={{
+              padding: "0.3rem 0.7rem",
+              background: keyboardLayoutVariant === "full" ? "#3b82f6" : "#1e293b",
+              color: "white",
+              border: "1px solid #334155",
+              borderRadius: "6px",
+              cursor: "pointer",
+              fontSize: "0.85rem",
+            }}
+          >
+            Full
+          </button>
+        </div>
         <VirtualKeyboard
+          key={keyboardLayoutVariant}
           disabled={sending || sendingSpecial || !keyboardConnected}
+          layoutVariant={keyboardLayoutVariant}
           onTextKey={handleSpecialKey}
           onSpecialKey={handleVirtualSpecialKey}
         />

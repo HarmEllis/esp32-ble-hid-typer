@@ -1,0 +1,93 @@
+.vk-shell {
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 10px;
+}
+
+.vk-shell[aria-disabled="true"] {
+  opacity: 0.6;
+}
+
+.vk-full-shell {
+  overflow: visible;
+  width: max-content;
+  max-width: none;
+  position: relative;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.vk-full-scroll {
+  overflow: visible;
+  width: max-content;
+}
+
+.vk-full-canvas {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  width: max-content;
+}
+
+.vk-full-main-host.vk-theme.hg-theme-default,
+.vk-full-control-host.vk-theme.hg-theme-default,
+.vk-full-arrows-host.vk-theme.hg-theme-default {
+  width: max-content !important;
+}
+
+.vk-full-canvas > * {
+  flex: 0 0 auto;
+}
+
+.vk-full-right {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  flex: 0 0 auto;
+}
+
+.vk-theme.hg-theme-default {
+  background: #0a1222;
+  border: 1px solid #1f2e45;
+  border-radius: 10px;
+  box-shadow: none;
+  padding: 0.4rem;
+}
+
+.vk-theme.hg-theme-default .hg-row {
+  margin-bottom: 0.35rem;
+}
+
+.vk-theme.hg-theme-default .hg-row:last-child {
+  margin-bottom: 0;
+}
+
+.vk-theme.hg-theme-default .hg-button {
+  height: 2.65rem;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #dbe7f5;
+  border: 1px solid #253449;
+  box-shadow: none;
+  font-size: 0.95rem;
+}
+
+.vk-theme.hg-theme-default .hg-button.hg-activeButton,
+.vk-theme.hg-theme-default .hg-button:active {
+  background: #1e293b;
+  color: #f8fafc;
+}
+
+.vk-theme.hg-theme-default .hg-button span {
+  pointer-events: none;
+}
+
+.vk-theme.hg-theme-default .hg-button[data-skbtn="{space}"] {
+  min-width: 16rem;
+}
+
+.vk-full-right .vk-theme.hg-theme-default .hg-button {
+  min-width: 3.35rem;
+}
