@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from "preact/hooks";
 import { RoutableProps } from "preact-router";
 import { ESPLoader, Transport, FlashOptions } from "esptool-js";
-import { nav } from "../utils/nav";
+import { BASE, nav } from "../utils/nav";
 
 /** ESP32-S3 flash offsets */
 const OFFSETS = {
@@ -11,6 +11,11 @@ const OFFSETS = {
 } as const;
 
 type FlashSource = "files" | "release";
+const REQUIRED_RELEASE_FILES = [
+  "bootloader-esp32s3.bin",
+  "partition-table-esp32s3.bin",
+  "firmware-esp32s3.bin",
+] as const;
 
 interface FileSlot {
   label: string;
@@ -18,6 +23,23 @@ interface FileSlot {
   file: File | null;
   data: string | null;
   required: boolean;
+}
+
+interface ReleaseAsset {
+  name: string;
+  url: string;
+}
+
+interface ReleaseInfo {
+  tag: string;
+  url: string;
+  assets: Record<string, ReleaseAsset>;
+}
+
+interface HostedReleaseManifestEntry {
+  tag: string;
+  url?: string;
+  files?: Record<string, string>;
 }
 
 /** Convert ArrayBuffer to binary string (as esptool-js expects) */
@@ -33,18 +55,9 @@ function arrayBufferToBstr(buf: ArrayBuffer): string {
   return chunks.join("");
 }
 
-/**
- * Derive GitHub owner/repo from the current page URL when hosted on
- * GitHub Pages (https://<owner>.github.io/<repo>/).
- */
-function detectGitHubRepo(): { owner: string; repo: string } | null {
-  const { hostname, pathname } = window.location;
-  const match = hostname.match(/^(.+)\.github\.io$/);
-  if (!match) return null;
-  const owner = match[1];
-  const repo = pathname.split("/").filter(Boolean)[0];
-  if (!repo) return null;
-  return { owner, repo };
+function withBasePath(relativePath: string): string {
+  const normalized = relativePath.replace(/^\/+/, "");
+  return `${BASE}/${normalized}`;
 }
 
 export function FirmwareFlash(_props: RoutableProps) {
@@ -57,10 +70,7 @@ export function FirmwareFlash(_props: RoutableProps) {
   const [fileProgress, setFileProgress] = useState<number[]>([]);
   const [logLines, setLogLines] = useState<string[]>([]);
 
-  const [releaseUrl, setReleaseUrl] = useState("");
-  const [releases, setReleases] = useState<
-    { tag: string; url: string }[] | null
-  >(null);
+  const [releases, setReleases] = useState<ReleaseInfo[] | null>(null);
   const [loadingReleases, setLoadingReleases] = useState(false);
   const [selectedTag, setSelectedTag] = useState("");
 
@@ -174,37 +184,48 @@ export function FirmwareFlash(_props: RoutableProps) {
     setStatus("");
   }
 
-  /** Fetch available GitHub releases */
+  /** Fetch firmware versions hosted under /firmware on this site */
   async function fetchReleases() {
     setLoadingReleases(true);
     setError("");
     try {
-      const detected = detectGitHubRepo();
-      const apiBase = detected
-        ? `https://api.github.com/repos/${detected.owner}/${detected.repo}/releases`
-        : releaseUrl
-          ? releaseUrl
-          : null;
-
-      if (!apiBase) {
-        setError("Could not determine GitHub repository. Enter a release URL.");
-        return;
+      const resp = await fetch(withBasePath("firmware/releases.json"), {
+        cache: "no-store",
+      });
+      if (!resp.ok) {
+        throw new Error(`Hosted firmware index: ${resp.status}`);
       }
-
-      const resp = await fetch(apiBase);
-      if (!resp.ok) throw new Error(`GitHub API: ${resp.status}`);
       const data = await resp.json();
 
-      const tags = (data as { tag_name: string; html_url: string }[])
+      const tags = (data as HostedReleaseManifestEntry[])
         .filter(
-          (r: { tag_name: string }) =>
-            r.tag_name && r.tag_name.startsWith("v")
+          (r) =>
+            typeof r.tag === "string" &&
+            r.tag.startsWith("v") &&
+            !!r.files
         )
-        .slice(0, 10)
-        .map((r: { tag_name: string; html_url: string }) => ({
-          tag: r.tag_name,
-          url: r.html_url,
-        }));
+        .slice(0, 20)
+        .map((r) => {
+          const assets: Record<string, ReleaseAsset> = {};
+          for (const filename of REQUIRED_RELEASE_FILES) {
+            const filePath = r.files?.[filename];
+            if (!filePath) {
+              continue;
+            }
+            assets[filename] = {
+              name: filename,
+              url: withBasePath(filePath),
+            };
+          }
+          return {
+            tag: r.tag,
+            url: r.url ?? "",
+            assets,
+          };
+        })
+        .filter((release) =>
+          REQUIRED_RELEASE_FILES.every((filename) => !!release.assets[filename])
+        );
 
       setReleases(tags);
       if (tags.length > 0) setSelectedTag(tags[0].tag);
@@ -215,20 +236,24 @@ export function FirmwareFlash(_props: RoutableProps) {
     }
   }
 
-  /** Download a binary from a GitHub release asset */
-  async function downloadReleaseAsset(
-    owner: string,
-    repo: string,
-    tag: string,
-    filename: string
-  ): Promise<string> {
-    const url = `https://github.com/${owner}/${repo}/releases/download/${tag}/${filename}`;
-    appendLog(`Downloading ${filename}...`);
-    const resp = await fetch(url);
-    if (!resp.ok) throw new Error(`Failed to download ${filename}: ${resp.status}`);
+  /** Download a binary from the hosted firmware path */
+  async function downloadReleaseAsset(asset: ReleaseAsset): Promise<string> {
+    appendLog(`Downloading ${asset.name}...`);
+    const resp = await fetch(asset.url);
+    if (!resp.ok) throw new Error(`Failed to download ${asset.name}: ${resp.status}`);
     const buf = await resp.arrayBuffer();
-    appendLog(`Downloaded ${filename} (${buf.byteLength} bytes)`);
+    appendLog(`Downloaded ${asset.name} (${buf.byteLength} bytes)`);
     return arrayBufferToBstr(buf);
+  }
+
+  function requireReleaseAsset(release: ReleaseInfo, name: string): ReleaseAsset {
+    const asset = release.assets[name];
+    if (!asset) {
+      throw new Error(
+        `Release ${release.tag} is missing ${name}. Re-run Deploy Webapp to refresh hosted firmware files.`
+      );
+    }
+    return asset;
   }
 
   /** Flash firmware to ESP32 */
@@ -265,37 +290,28 @@ export function FirmwareFlash(_props: RoutableProps) {
         }
         fileArray = loaded;
       } else {
-        // Download from GitHub release
-        const detected = detectGitHubRepo();
-        if (!detected) {
-          setError("Cannot determine GitHub repository.");
-          setFlashing(false);
-          return;
-        }
+        // Download from hosted firmware release files
         if (!selectedTag) {
           setError("Select a release version first.");
           setFlashing(false);
           return;
         }
 
-        const { owner, repo } = detected;
+        const selectedRelease = releases?.find((r) => r.tag === selectedTag);
+        if (!selectedRelease) {
+          setError("Release metadata not loaded. Click 'Load Hosted Releases' first.");
+          setFlashing(false);
+          return;
+        }
+
         const bootloader = await downloadReleaseAsset(
-          owner,
-          repo,
-          selectedTag,
-          "bootloader-esp32s3.bin"
+          requireReleaseAsset(selectedRelease, "bootloader-esp32s3.bin")
         );
         const partTable = await downloadReleaseAsset(
-          owner,
-          repo,
-          selectedTag,
-          "partition-table-esp32s3.bin"
+          requireReleaseAsset(selectedRelease, "partition-table-esp32s3.bin")
         );
         const firmware = await downloadReleaseAsset(
-          owner,
-          repo,
-          selectedTag,
-          "firmware-esp32s3.bin"
+          requireReleaseAsset(selectedRelease, "firmware-esp32s3.bin")
         );
 
         fileArray = [
@@ -334,13 +350,22 @@ export function FirmwareFlash(_props: RoutableProps) {
 
       setStatus("Done! Device has been flashed and reset.");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Flash failed");
+      const message = e instanceof Error ? e.message : "Flash failed";
+      if (
+        message.includes("Failed to fetch") ||
+        message.includes("NetworkError")
+      ) {
+        setError(
+          "Failed to download hosted firmware files. Try reloading, or use Local Files mode."
+        );
+      } else {
+        setError(message);
+      }
     } finally {
       setFlashing(false);
     }
   }
 
-  const gitHubDetected = detectGitHubRepo();
   const allFilesSelected = slots.every((s) => !s.required || s.file);
   const canFlash =
     connected &&
@@ -454,24 +479,22 @@ export function FirmwareFlash(_props: RoutableProps) {
           >
             Local Files
           </button>
-          {gitHubDetected && (
-            <button
-              onClick={() => {
-                setSource("release");
-                if (!releases) fetchReleases();
-              }}
-              style={{
-                padding: "0.4rem 0.8rem",
-                background: source === "release" ? "#3b82f6" : "#374151",
-                color: "white",
-                border: "none",
-                borderRadius: "6px",
-                cursor: "pointer",
-              }}
-            >
-              GitHub Release
-            </button>
-          )}
+          <button
+            onClick={() => {
+              setSource("release");
+              if (!releases) fetchReleases();
+            }}
+            style={{
+              padding: "0.4rem 0.8rem",
+              background: source === "release" ? "#3b82f6" : "#374151",
+              color: "white",
+              border: "none",
+              borderRadius: "6px",
+              cursor: "pointer",
+            }}
+          >
+            Hosted Release
+          </button>
         </div>
 
         {source === "files" && (
@@ -517,7 +540,7 @@ export function FirmwareFlash(_props: RoutableProps) {
             )}
             {releases && releases.length === 0 && (
               <p style={{ color: "#f59e0b" }}>
-                No releases found. Build and tag a release first.
+                No hosted releases found. Build firmware and deploy webapp for a tag first.
               </p>
             )}
             {releases && releases.length > 0 && (
@@ -561,44 +584,12 @@ export function FirmwareFlash(_props: RoutableProps) {
                   }}
                 >
                   Will download bootloader, partition table, and firmware from
-                  this release.
+                  this hosted release.
                 </p>
               </div>
             )}
             {!releases && !loadingReleases && (
               <div>
-                {!gitHubDetected && (
-                  <div style={{ marginBottom: "0.5rem" }}>
-                    <label
-                      style={{
-                        color: "#94a3b8",
-                        fontSize: "0.85rem",
-                        display: "block",
-                        marginBottom: "0.25rem",
-                      }}
-                    >
-                      GitHub Releases API URL
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="https://api.github.com/repos/owner/repo/releases"
-                      value={releaseUrl}
-                      onInput={(e) =>
-                        setReleaseUrl((e.target as HTMLInputElement).value)
-                      }
-                      style={{
-                        width: "100%",
-                        padding: "0.4rem",
-                        background: "#0f172a",
-                        color: "#e2e8f0",
-                        border: "1px solid #334155",
-                        borderRadius: "6px",
-                        fontSize: "0.9rem",
-                        boxSizing: "border-box",
-                      }}
-                    />
-                  </div>
-                )}
                 <button
                   onClick={fetchReleases}
                   style={{
@@ -610,7 +601,7 @@ export function FirmwareFlash(_props: RoutableProps) {
                     cursor: "pointer",
                   }}
                 >
-                  Load Releases
+                  Load Hosted Releases
                 </button>
               </div>
             )}
