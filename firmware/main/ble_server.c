@@ -440,10 +440,13 @@ static void on_typing_progress(uint32_t current, uint32_t total)
 {
     if (s_conn_handle == BLE_HS_CONN_HANDLE_NONE) return;
 
+    bool typing_active = current < total;
     char json[64];
     int len = snprintf(json, sizeof(json),
-                       "{\"typing\":true,\"current\":%lu,\"total\":%lu}",
-                       (unsigned long)current, (unsigned long)total);
+                       "{\"typing\":%s,\"current\":%lu,\"total\":%lu}",
+                       typing_active ? "true" : "false",
+                       (unsigned long)current,
+                       (unsigned long)total);
 
     struct os_mbuf *om = ble_hs_mbuf_from_flat(json, len);
     if (om) {
