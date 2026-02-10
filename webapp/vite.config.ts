@@ -29,5 +29,5 @@ export default defineConfig({
       },
     }),
   ],
-  base: "/espidf-bluetooth-typer-preact-app/",
+  base: "/esp32-ble-hid-typer/",
 });
