@@ -9,6 +9,6 @@
 [x] The back button on the settings page takes you back to the home page instead of the Sent text page; this is also for the 'Change PIN' and 'Audit log' page (maybe use the browser history api?)
 [x] Add left and right arrow buttons and home and end buttons next to the Enter button
 [x] Add ctrl+a, ctrl+c, ctrl+v and ctrl+enter to the shortcuts
-[ ] Add a virtual keyboard (default hidden like the shortcuts) to the pwa (that also works good on a mobile phone); Use an existing npm package if that will give the best result.
+[x] Add a virtual keyboard (default hidden like the shortcuts) to the pwa (that also works good on a mobile phone); Use an existing npm package if that will give the best result.
 [ ] The abort button should only be usable when typing
 [ ] The Send, Paste & Send and Abort buttons have different heights, fix this

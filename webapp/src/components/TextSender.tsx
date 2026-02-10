@@ -3,6 +3,7 @@ import { RoutableProps } from "preact-router";
 import * as ble from "../utils/ble";
 import { StatusBar } from "./StatusBar";
 import { ClipboardPaste } from "./ClipboardPaste";
+import { VirtualKeyboard, type VirtualSpecialKey } from "./VirtualKeyboard";
 import { nav } from "../utils/nav";
 
 const CTRL_ALT_MODIFIER = 0x01 | 0x04;
@@ -145,6 +146,34 @@ export function TextSender(_props: RoutableProps) {
     } finally {
       setSendingSpecial(false);
     }
+  };
+
+  const handleVirtualSpecialKey = async (key: VirtualSpecialKey) => {
+    if (key === "backspace") {
+      await handleSpecialKey("\b");
+      return;
+    }
+    if (key === "tab") {
+      await handleSpecialKey("\t");
+      return;
+    }
+    if (key === "enter") {
+      await handleSpecialKey("\n");
+      return;
+    }
+    if (key === "left") {
+      await handleShortcut(0, 0x50);
+      return;
+    }
+    if (key === "right") {
+      await handleShortcut(0, 0x4f);
+      return;
+    }
+    if (key === "home") {
+      await handleShortcut(0, 0x4a);
+      return;
+    }
+    await handleShortcut(0, 0x4d);
   };
 
   const handleDisconnect = async () => {
@@ -443,6 +472,17 @@ export function TextSender(_props: RoutableProps) {
             </button>
           ))}
         </div>
+      </details>
+
+      <details style={{ marginTop: "1rem" }}>
+        <summary style={{ cursor: "pointer", color: "#94a3b8" }}>
+          Virtual Keyboard
+        </summary>
+        <VirtualKeyboard
+          disabled={sending || sendingSpecial || !keyboardConnected}
+          onTextKey={handleSpecialKey}
+          onSpecialKey={handleVirtualSpecialKey}
+        />
       </details>
 
       {!keyboardConnected && (
