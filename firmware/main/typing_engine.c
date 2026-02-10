@@ -13,7 +13,9 @@ static const char *TAG = "typing_engine";
 #define DEFAULT_DELAY_MS    10
 #define MIN_DELAY_MS        5
 #define MAX_DELAY_MS        100
-#define KEY_PRESS_HOLD_MS   2
+#define KEY_PRESS_HOLD_MS   8
+#define KEY_RETRY_DELAY_MS  4
+#define KEY_RELEASE_GAP_MS  4
 
 static char s_queue[TYPING_QUEUE_MAX_SIZE];
 static volatile uint32_t s_queue_head;
@@ -44,16 +46,50 @@ static bool queue_pop(char *ch)
     return true;
 }
 
-static void type_char(char ch)
+static bool ensure_keys_released(void)
 {
-    if ((uint8_t)ch >= 128) return;  /* Skip non-ASCII */
+    /* If a single release report is missed, hosts can keep auto-repeating the
+     * last key. Retry a few times to guarantee key-up reaches the host. */
+    for (int i = 0; i < 20; i++) {
+        if (usb_hid_release_keys() == ESP_OK) {
+            return true;
+        }
+        vTaskDelay(pdMS_TO_TICKS(5));
+    }
+    ESP_LOGW(TAG, "Failed to send key release after retries");
+    return false;
+}
+
+static bool send_key_with_retry(uint8_t modifier, uint8_t keycode, char ch)
+{
+    for (int i = 0; i < 30 && !s_abort; i++) {
+        esp_err_t err = usb_hid_send_key(modifier, keycode);
+        if (err == ESP_OK) {
+            return true;
+        }
+        vTaskDelay(pdMS_TO_TICKS(KEY_RETRY_DELAY_MS));
+    }
+    ESP_LOGW(TAG, "Key press failed after retries: char=0x%02x", (unsigned char)ch);
+    return false;
+}
+
+static bool type_char(char ch)
+{
+    if ((uint8_t)ch >= 128) return true;  /* Skip non-ASCII */
 
     const hid_keymap_entry_t *entry = &KEYMAP_US[(uint8_t)ch];
-    if (entry->keycode == 0x00 && ch != 0) return;  /* Unmapped character */
+    if (entry->keycode == 0x00 && ch != 0) return true;  /* Unmapped character */
 
-    usb_hid_send_key(entry->modifier, entry->keycode);
+    if (!send_key_with_retry(entry->modifier, entry->keycode, ch)) {
+        return false;
+    }
+
     vTaskDelay(pdMS_TO_TICKS(KEY_PRESS_HOLD_MS));
-    usb_hid_release_keys();
+    if (!ensure_keys_released()) {
+        return false;
+    }
+    vTaskDelay(pdMS_TO_TICKS(KEY_RELEASE_GAP_MS));
+    return true;
 }
 
 static void typing_task(void *arg)
@@ -65,6 +101,7 @@ static void typing_task(void *arg)
         while (queue_used() == 0 || s_abort) {
             if (s_typing) {
                 s_typing = false;
+                (void)ensure_keys_released();
                 neopixel_set_state(s_prev_led_state);
             }
             if (s_abort) {
@@ -75,8 +112,9 @@ static void typing_task(void *arg)
                 s_queue_typed = 0;
                 s_abort = false;
                 xSemaphoreGive(s_mutex);
+                (void)ensure_keys_released();
             }
-            vTaskDelay(pdMS_TO_TICKS(50));
+            ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(50));
         }
 
         /* Start typing */
@@ -87,7 +125,13 @@ static void typing_task(void *arg)
         }
 
         if (queue_pop(&ch)) {
-            type_char(ch);
+            while (!s_abort && !type_char(ch)) {
+                vTaskDelay(pdMS_TO_TICKS(KEY_RETRY_DELAY_MS));
+            }
+            if (s_abort) {
+                continue;
+            }
+
             s_queue_typed++;
 
             if (s_progress_cb) {
@@ -144,12 +188,18 @@ esp_err_t typing_engine_enqueue(const char *text, size_t len)
 
     xSemaphoreGive(s_mutex);
     ESP_LOGI(TAG, "Enqueued %u chars (total in queue: %lu)", (unsigned)len, (unsigned long)queue_used());
+    if (s_task_handle != NULL) {
+        xTaskNotifyGive(s_task_handle);
+    }
     return ESP_OK;
 }
 
 void typing_engine_abort(void)
 {
     s_abort = true;
+    if (s_task_handle != NULL) {
+        xTaskNotifyGive(s_task_handle);
+    }
     ESP_LOGI(TAG, "Abort requested");
 }
 
