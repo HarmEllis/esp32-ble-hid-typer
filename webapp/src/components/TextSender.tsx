@@ -6,11 +6,18 @@ import { ClipboardPaste } from "./ClipboardPaste";
 import { nav } from "../utils/nav";
 
 const CTRL_ALT_MODIFIER = 0x01 | 0x04;
+const CTRL_MODIFIER = 0x01;
 const CTRL_ALT_FUNCTION_SHORTCUTS = Array.from({ length: 12 }, (_, index) => ({
   label: `Ctrl+Alt+F${index + 1}`,
   modifier: CTRL_ALT_MODIFIER,
   keycode: 0x3a + index,
 }));
+const COMMON_CTRL_SHORTCUTS = [
+  { label: "Ctrl+A", modifier: CTRL_MODIFIER, keycode: 0x04 },
+  { label: "Ctrl+C", modifier: CTRL_MODIFIER, keycode: 0x06 },
+  { label: "Ctrl+V", modifier: CTRL_MODIFIER, keycode: 0x19 },
+  { label: "Ctrl+Enter", modifier: CTRL_MODIFIER, keycode: 0x28 },
+];
 const NAVIGATION_KEYS = [
   { label: "Left", keycode: 0x50 },
   { label: "Right", keycode: 0x4f },
@@ -382,6 +389,33 @@ export function TextSender(_props: RoutableProps) {
         <summary style={{ cursor: "pointer", color: "#94a3b8" }}>
           Shortcuts
         </summary>
+        <div
+          style={{
+            marginTop: "0.75rem",
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+            gap: "0.5rem",
+          }}
+        >
+          {COMMON_CTRL_SHORTCUTS.map((shortcut) => (
+            <button
+              key={shortcut.label}
+              onClick={() => handleShortcut(shortcut.modifier, shortcut.keycode)}
+              disabled={sending || sendingSpecial || !keyboardConnected}
+              style={{
+                padding: "0.45rem 0.75rem",
+                background: "#334155",
+                color: "#e2e8f0",
+                border: "1px solid #475569",
+                borderRadius: "6px",
+                cursor: sending || sendingSpecial || !keyboardConnected ? "not-allowed" : "pointer",
+                opacity: sending || sendingSpecial || !keyboardConnected ? 0.5 : 1,
+              }}
+            >
+              {shortcut.label}
+            </button>
+          ))}
+        </div>
         <div
           style={{
             marginTop: "0.75rem",
