@@ -327,7 +327,8 @@ export function FirmwareFlash(_props: RoutableProps) {
 
       const flashOptions: FlashOptions = {
         fileArray,
-        flashSize: "8MB",
+        // Preserve flash size encoded in the binaries (supports both 4MB and 8MB builds)
+        flashSize: "keep",
         flashMode: "dio",
         flashFreq: "80m",
         eraseAll: false,

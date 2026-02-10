@@ -2,8 +2,8 @@
 CONFIG_PARTITION_TABLE_CUSTOM=y
 CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
 
-# Flash size (8 MB, common for S3 DevKit boards)
-CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y
+# Flash size (4 MB for broad ESP32-S3 compatibility; also runs on larger flash)
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
 
 # Bluetooth — use NimBLE, not Bluedroid
 CONFIG_BT_ENABLED=y
