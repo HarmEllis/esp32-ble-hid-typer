@@ -53,7 +53,7 @@ const SIMPLE_LAYOUT = {
     "a s d f g h j k l",
     "{shift} z x c v b n m {backspace}",
     "{tab} {space} {enter}",
-    "{home} {left} {right} {end}",
+    "{home} {arrowleft} {arrowright} {end}",
   ],
   shift: [
     "! @ # $ % ^ & * ( )",
@@ -61,7 +61,7 @@ const SIMPLE_LAYOUT = {
     "A S D F G H J K L",
     "{shift} Z X C V B N M {backspace}",
     "{tab} {space} {enter}",
-    "{home} {left} {right} {end}",
+    "{home} {arrowleft} {arrowright} {end}",
   ],
 };
 
