@@ -2,6 +2,7 @@ import { useState } from "preact/hooks";
 import { RoutableProps } from "preact-router";
 import * as ble from "../utils/ble";
 import { validatePin } from "../utils/auth";
+import { PageHeader } from "./PageHeader";
 
 export function ProvisioningScreen(_props: RoutableProps) {
   const [step, setStep] = useState<"connect" | "setup" | "done">("connect");
@@ -82,7 +83,7 @@ export function ProvisioningScreen(_props: RoutableProps) {
   if (step === "done") {
     return (
       <div style={{ padding: "2rem", maxWidth: "500px", margin: "0 auto" }}>
-        <h2>Setup Complete</h2>
+        <PageHeader title="Setup Complete" />
         <p style={{ color: "#4ade80" }}>
           Device is rebooting into normal mode. You can now connect via
           "Connect to Device".
@@ -94,7 +95,7 @@ export function ProvisioningScreen(_props: RoutableProps) {
   if (step === "connect") {
     return (
       <div style={{ padding: "2rem", maxWidth: "500px", margin: "0 auto" }}>
-        <h2>Set Up New Device</h2>
+        <PageHeader title="Set Up New Device" />
         <p style={{ color: "#94a3b8", marginBottom: "1rem" }}>
           Connect to a device in provisioning mode (orange blinking LED).
         </p>
@@ -121,7 +122,7 @@ export function ProvisioningScreen(_props: RoutableProps) {
 
   return (
     <div style={{ padding: "2rem", maxWidth: "500px", margin: "0 auto" }}>
-      <h2>Device Setup</h2>
+      <PageHeader title="Device Setup" />
 
       <div style={{ marginBottom: "1rem" }}>
         <label style={{ display: "block", marginBottom: "0.25rem", color: "#94a3b8" }}>

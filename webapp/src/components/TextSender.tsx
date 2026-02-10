@@ -102,7 +102,24 @@ export function TextSender(_props: RoutableProps) {
           marginBottom: "1rem",
         }}
       >
-        <h2 style={{ margin: 0 }}>Send Text</h2>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+          <button
+            onClick={() => nav("/connect")}
+            style={{
+              background: "none",
+              border: "none",
+              color: "#94a3b8",
+              cursor: "pointer",
+              fontSize: "1.2rem",
+              padding: "0.25rem",
+              lineHeight: 1,
+            }}
+            aria-label="Go back"
+          >
+            &larr;
+          </button>
+          <h2 style={{ margin: 0 }}>Send Text</h2>
+        </div>
         <button
           onClick={handleDisconnect}
           style={{

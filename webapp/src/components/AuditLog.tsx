@@ -1,6 +1,7 @@
 import { useState } from "preact/hooks";
 import { RoutableProps } from "preact-router";
 import * as ble from "../utils/ble";
+import { PageHeader } from "./PageHeader";
 
 export function AuditLog(_props: RoutableProps) {
   const [logs, setLogs] = useState("");
@@ -30,7 +31,7 @@ export function AuditLog(_props: RoutableProps) {
 
   return (
     <div style={{ padding: "2rem", maxWidth: "600px", margin: "0 auto" }}>
-      <h2>Audit Log</h2>
+      <PageHeader title="Audit Log" />
 
       <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
         <button

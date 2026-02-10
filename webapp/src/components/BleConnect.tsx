@@ -3,6 +3,7 @@ import { RoutableProps } from "preact-router";
 import * as ble from "../utils/ble";
 import { nav } from "../utils/nav";
 import type { DeviceStatus } from "../types/protocol";
+import { PageHeader } from "./PageHeader";
 
 export function BleConnect(_props: RoutableProps) {
   const [error, setError] = useState("");
@@ -96,7 +97,7 @@ export function BleConnect(_props: RoutableProps) {
 
   return (
     <div style={{ padding: "2rem", maxWidth: "500px", margin: "0 auto" }}>
-      <h2>Connect to Device</h2>
+      <PageHeader title="Connect to Device" />
       <p style={{ color: "#94a3b8", marginBottom: "1rem" }}>
         Connect to a provisioned device (blue LED when connected), then enter
         the device PIN here to unlock commands.

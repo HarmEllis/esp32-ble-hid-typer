@@ -3,6 +3,7 @@ import { RoutableProps } from "preact-router";
 import * as ble from "../utils/ble";
 import * as storage from "../utils/storage";
 import { nav } from "../utils/nav";
+import { PageHeader } from "./PageHeader";
 
 export function Settings(_props: RoutableProps) {
   const [typingDelay, setTypingDelay] = useState(storage.getTypingDelay());
@@ -51,7 +52,7 @@ export function Settings(_props: RoutableProps) {
 
   return (
     <div style={{ padding: "2rem", maxWidth: "500px", margin: "0 auto" }}>
-      <h2>Settings</h2>
+      <PageHeader title="Settings" />
 
       <div style={{ marginBottom: "1.5rem" }}>
         <label style={{ display: "block", marginBottom: "0.5rem", color: "#94a3b8" }}>

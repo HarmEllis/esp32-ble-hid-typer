@@ -2,6 +2,7 @@ import { useState } from "preact/hooks";
 import { RoutableProps } from "preact-router";
 import { validatePin } from "../utils/auth";
 import * as ble from "../utils/ble";
+import { PageHeader } from "./PageHeader";
 
 export function PinSetup(_props: RoutableProps) {
   const [oldPin, setOldPin] = useState("");
@@ -57,7 +58,7 @@ export function PinSetup(_props: RoutableProps) {
 
   return (
     <div style={{ padding: "2rem", maxWidth: "500px", margin: "0 auto" }}>
-      <h2>Change PIN</h2>
+      <PageHeader title="Change PIN" />
 
       <div style={{ marginBottom: "1rem" }}>
         <label style={{ display: "block", marginBottom: "0.25rem", color: "#94a3b8" }}>
