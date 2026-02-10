@@ -15,6 +15,8 @@ static led_strip_handle_t s_strip;
 static led_state_t s_state = LED_STATE_OFF;
 static uint8_t s_brightness = DEFAULT_BRIGHTNESS;
 static TaskHandle_t s_task_handle;
+static volatile bool s_typing_indicator_enabled;
+static volatile bool s_typing_key_down;
 
 static void set_color(uint8_t r, uint8_t g, uint8_t b)
 {
@@ -37,6 +39,17 @@ static void neopixel_task(void *arg)
     bool on = false;
 
     while (1) {
+        if (s_typing_indicator_enabled) {
+            /* Key-timed typing indicator: orange on key-down, off on key-up. */
+            if (s_typing_key_down) {
+                set_color(255, 165, 0);
+            } else {
+                led_off();
+            }
+            vTaskDelay(pdMS_TO_TICKS(2));
+            continue;
+        }
+
         led_state_t cur = s_state;
 
         /* Reset blink phase on state change */
@@ -156,6 +169,19 @@ esp_err_t neopixel_init(void)
 void neopixel_set_state(led_state_t state)
 {
     s_state = state;
+}
+
+void neopixel_set_typing_indicator(bool enabled)
+{
+    s_typing_indicator_enabled = enabled;
+    if (!enabled) {
+        s_typing_key_down = false;
+    }
+}
+
+void neopixel_set_typing_key_down(bool key_down)
+{
+    s_typing_key_down = key_down;
 }
 
 void neopixel_set_brightness(uint8_t percent)

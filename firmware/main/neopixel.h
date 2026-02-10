@@ -2,6 +2,7 @@
 
 #include "esp_err.h"
 #include <stdint.h>
+#include <stdbool.h>
 
 typedef enum {
     LED_STATE_OFF,
@@ -21,3 +22,5 @@ void neopixel_set_state(led_state_t state);
 void neopixel_set_brightness(uint8_t percent);
 uint8_t neopixel_get_brightness(void);
 led_state_t neopixel_get_state(void);
+void neopixel_set_typing_indicator(bool enabled);
+void neopixel_set_typing_key_down(bool key_down);

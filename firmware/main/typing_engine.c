@@ -13,7 +13,7 @@ static const char *TAG = "typing_engine";
 #define DEFAULT_DELAY_MS    10
 #define MIN_DELAY_MS        5
 #define MAX_DELAY_MS        100
-#define KEY_PRESS_HOLD_MS   8
+#define KEY_PRESS_HOLD_MS   4
 #define KEY_RETRY_DELAY_MS  4
 #define KEY_RELEASE_GAP_MS  4
 
@@ -84,10 +84,13 @@ static bool type_char(char ch)
         return false;
     }
 
+    neopixel_set_typing_key_down(true);
     vTaskDelay(pdMS_TO_TICKS(KEY_PRESS_HOLD_MS));
     if (!ensure_keys_released()) {
+        neopixel_set_typing_key_down(false);
         return false;
     }
+    neopixel_set_typing_key_down(false);
     vTaskDelay(pdMS_TO_TICKS(KEY_RELEASE_GAP_MS));
     return true;
 }
@@ -102,6 +105,7 @@ static void typing_task(void *arg)
             if (s_typing) {
                 s_typing = false;
                 (void)ensure_keys_released();
+                neopixel_set_typing_indicator(false);
                 neopixel_set_state(s_prev_led_state);
             }
             if (s_abort) {
@@ -121,7 +125,8 @@ static void typing_task(void *arg)
         if (!s_typing) {
             s_typing = true;
             s_prev_led_state = neopixel_get_state();
-            neopixel_set_state(LED_STATE_TYPING);
+            neopixel_set_typing_key_down(false);
+            neopixel_set_typing_indicator(true);
         }
 
         if (queue_pop(&ch)) {
