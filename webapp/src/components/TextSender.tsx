@@ -1,6 +1,7 @@
 import { useState, useEffect } from "preact/hooks";
 import { RoutableProps } from "preact-router";
 import * as ble from "../utils/ble";
+import * as storage from "../utils/storage";
 import { StatusBar } from "./StatusBar";
 import { ClipboardPaste } from "./ClipboardPaste";
 import {
@@ -12,6 +13,8 @@ import { nav } from "../utils/nav";
 
 const CTRL_ALT_MODIFIER = 0x01 | 0x04;
 const CTRL_MODIFIER = 0x01;
+const ALT_MODIFIER = 0x04;
+const PRINT_SCREEN_KEYCODE = 0x46;
 const CTRL_ALT_FUNCTION_SHORTCUTS = Array.from({ length: 12 }, (_, index) => ({
   label: `Ctrl+Alt+F${index + 1}`,
   modifier: CTRL_ALT_MODIFIER,
@@ -29,6 +32,36 @@ const NAVIGATION_KEYS = [
   { label: "Home", keycode: 0x4a },
   { label: "End", keycode: 0x4d },
 ];
+const SYSRQ_KEYS = [
+  "h",
+  "b",
+  "c",
+  "d",
+  "e",
+  "f",
+  "i",
+  "k",
+  "m",
+  "n",
+  "o",
+  "p",
+  "q",
+  "r",
+  "s",
+  "t",
+  "u",
+  "v",
+  "w",
+  "z",
+] as const;
+
+function getLetterKeycode(letter: string): number | null {
+  const normalized = letter.toLowerCase();
+  if (normalized.length !== 1 || normalized < "a" || normalized > "z") {
+    return null;
+  }
+  return normalized.charCodeAt(0) - 93;
+}
 
 export function TextSender(_props: RoutableProps) {
   const [text, setText] = useState("");
@@ -41,6 +74,7 @@ export function TextSender(_props: RoutableProps) {
   const [typingActive, setTypingActive] = useState(false);
   const [keyboardLayoutVariant, setKeyboardLayoutVariant] =
     useState<KeyboardLayoutVariant>("simple");
+  const [sysrqEnabled] = useState(storage.getSysRqEnabled());
 
   useEffect(() => {
     if (!ble.isConnected()) {
@@ -250,6 +284,33 @@ export function TextSender(_props: RoutableProps) {
       return;
     }
     await handleShortcut(0, 0x4d);
+  };
+
+  const handleSysRqCommand = async (key: string) => {
+    if (!sysrqEnabled || sendingSpecial || sending) return;
+
+    const keycode = getLetterKeycode(key);
+    if (keycode === null) return;
+
+    setError("");
+    if (!(await ensureKeyboardConnected())) return;
+    setSendingSpecial(true);
+    try {
+      await ble.sendPinAction({
+        action: "key_combo",
+        modifier: ALT_MODIFIER,
+        keycode: PRINT_SCREEN_KEYCODE,
+      });
+      await ble.sendPinAction({
+        action: "key_combo",
+        modifier: ALT_MODIFIER,
+        keycode,
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to send SysRq command");
+    } finally {
+      setSendingSpecial(false);
+    }
   };
 
   const handleDisconnect = async () => {
@@ -552,6 +613,45 @@ export function TextSender(_props: RoutableProps) {
           ))}
         </div>
       </details>
+
+      {sysrqEnabled && (
+        <details style={{ marginTop: "1rem" }}>
+          <summary style={{ cursor: "pointer", color: "#f97316" }}>
+            SysRq Commands (Advanced)
+          </summary>
+          <p style={{ color: "#94a3b8", fontSize: "0.85rem", marginTop: "0.6rem" }}>
+            Sends Linux magic SysRq as Alt+PrintScreen plus command key.
+          </p>
+          <div
+            style={{
+              marginTop: "0.75rem",
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+              gap: "0.5rem",
+            }}
+          >
+            {SYSRQ_KEYS.map((key) => (
+              <button
+                key={key}
+                onClick={() => handleSysRqCommand(key)}
+                disabled={sending || sendingSpecial || !keyboardConnected}
+                style={{
+                  padding: "0.45rem 0.75rem",
+                  background: "#3f1d0d",
+                  color: "#fed7aa",
+                  border: "1px solid #7c2d12",
+                  borderRadius: "6px",
+                  cursor:
+                    sending || sendingSpecial || !keyboardConnected ? "not-allowed" : "pointer",
+                  opacity: sending || sendingSpecial || !keyboardConnected ? 0.5 : 1,
+                }}
+              >
+                SysRq+{key.toUpperCase()}
+              </button>
+            ))}
+          </div>
+        </details>
+      )}
 
       <details style={{ marginTop: "1rem" }}>
         <summary style={{ cursor: "pointer", color: "#94a3b8" }}>
