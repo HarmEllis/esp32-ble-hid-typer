@@ -34,6 +34,7 @@ export function TextSender(_props: RoutableProps) {
   const [connected, setConnected] = useState(true);
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [keyboardConnected, setKeyboardConnected] = useState(true);
+  const [typingActive, setTypingActive] = useState(false);
 
   useEffect(() => {
     if (!ble.isConnected()) {
@@ -47,6 +48,7 @@ export function TextSender(_props: RoutableProps) {
         return;
       }
       setKeyboardConnected(status.keyboard_connected !== false);
+      setTypingActive(Boolean(status.typing));
       setCheckingAuth(false);
     }).catch(() => {
       nav("/connect");
@@ -54,9 +56,15 @@ export function TextSender(_props: RoutableProps) {
 
     ble.onStatusChange((value) => {
       try {
-        const status = JSON.parse(value) as { keyboard_connected?: boolean };
+        const status = JSON.parse(value) as {
+          keyboard_connected?: boolean;
+          typing?: boolean;
+        };
         if (typeof status.keyboard_connected === "boolean") {
           setKeyboardConnected(status.keyboard_connected);
+        }
+        if (typeof status.typing === "boolean") {
+          setTypingActive(status.typing);
         }
       } catch {
         /* ignore parse errors */
@@ -68,6 +76,7 @@ export function TextSender(_props: RoutableProps) {
     const interval = window.setInterval(() => {
       ble.readStatusObject().then((status) => {
         setKeyboardConnected(status.keyboard_connected !== false);
+        setTypingActive(Boolean(status.typing));
       }).catch(() => {
         /* ignore transient read failures */
       });
@@ -113,6 +122,7 @@ export function TextSender(_props: RoutableProps) {
   };
 
   const handleAbort = async () => {
+    if (!typingActive) return;
     try {
       await ble.sendPinAction({ action: "abort" });
     } catch {
@@ -326,15 +336,15 @@ export function TextSender(_props: RoutableProps) {
 
         <button
           onClick={handleAbort}
-          disabled={sendingSpecial}
+          disabled={sendingSpecial || !typingActive}
           style={{
             padding: "0.5rem 1rem",
             background: "#dc2626",
             color: "white",
             border: "none",
             borderRadius: "6px",
-            cursor: sendingSpecial ? "not-allowed" : "pointer",
-            opacity: sendingSpecial ? 0.5 : 1,
+            cursor: sendingSpecial || !typingActive ? "not-allowed" : "pointer",
+            opacity: sendingSpecial || !typingActive ? 0.5 : 1,
           }}
         >
           Abort
