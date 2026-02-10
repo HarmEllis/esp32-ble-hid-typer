@@ -11,6 +11,12 @@ const CTRL_ALT_FUNCTION_SHORTCUTS = Array.from({ length: 12 }, (_, index) => ({
   modifier: CTRL_ALT_MODIFIER,
   keycode: 0x3a + index,
 }));
+const NAVIGATION_KEYS = [
+  { label: "Left", keycode: 0x50 },
+  { label: "Right", keycode: 0x4f },
+  { label: "Home", keycode: 0x4a },
+  { label: "End", keycode: 0x4d },
+];
 
 export function TextSender(_props: RoutableProps) {
   const [text, setText] = useState("");
@@ -352,6 +358,24 @@ export function TextSender(_props: RoutableProps) {
         >
           Enter
         </button>
+        {NAVIGATION_KEYS.map((key) => (
+          <button
+            key={key.label}
+            onClick={() => handleShortcut(0, key.keycode)}
+            disabled={sending || sendingSpecial || !keyboardConnected}
+            style={{
+              padding: "0.45rem 0.9rem",
+              background: "#374151",
+              color: "white",
+              border: "none",
+              borderRadius: "6px",
+              cursor: sending || sendingSpecial || !keyboardConnected ? "not-allowed" : "pointer",
+              opacity: sending || sendingSpecial || !keyboardConnected ? 0.5 : 1,
+            }}
+          >
+            {key.label}
+          </button>
+        ))}
       </div>
 
       <details style={{ marginTop: "1rem" }}>
