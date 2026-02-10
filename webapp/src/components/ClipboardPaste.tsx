@@ -34,13 +34,17 @@ export function ClipboardPaste({ disabled }: Props) {
         onClick={handlePaste}
         disabled={disabled || sending}
         style={{
-          padding: "0.5rem 1rem",
+          height: "2.5rem",
+          padding: "0 1rem",
           background: "#6366f1",
           color: "white",
           border: "none",
           borderRadius: "6px",
           cursor: disabled || sending ? "not-allowed" : "pointer",
           opacity: disabled || sending ? 0.5 : 1,
+          fontSize: "1rem",
+          display: "inline-flex",
+          alignItems: "center",
         }}
       >
         {sending ? "Sending..." : "Paste & Send"}

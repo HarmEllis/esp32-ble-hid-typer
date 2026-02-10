@@ -316,7 +316,8 @@ export function TextSender(_props: RoutableProps) {
           onClick={handleSend}
           disabled={sending || sendingSpecial || !keyboardConnected || !text.trim()}
           style={{
-            padding: "0.5rem 1.5rem",
+            height: "2.5rem",
+            padding: "0 1.5rem",
             background: "#3b82f6",
             color: "white",
             border: "none",
@@ -338,13 +339,15 @@ export function TextSender(_props: RoutableProps) {
           onClick={handleAbort}
           disabled={sendingSpecial || !typingActive}
           style={{
-            padding: "0.5rem 1rem",
+            height: "2.5rem",
+            padding: "0 1rem",
             background: "#dc2626",
             color: "white",
             border: "none",
             borderRadius: "6px",
             cursor: sendingSpecial || !typingActive ? "not-allowed" : "pointer",
             opacity: sendingSpecial || !typingActive ? 0.5 : 1,
+            fontSize: "1rem",
           }}
         >
           Abort
