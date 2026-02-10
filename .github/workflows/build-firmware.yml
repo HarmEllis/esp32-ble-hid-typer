@@ -2,6 +2,11 @@ name: Build Firmware
 
 on:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Tag to build and release (e.g. v1.2.3)"
+        required: false
+        type: string
   push:
     tags: ["v*"]
 
@@ -12,6 +17,8 @@ jobs:
       image: espressif/idf:v5.3
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag != '' && inputs.release_tag || github.ref }}
 
       - name: Build firmware
         shell: bash
@@ -53,7 +60,7 @@ jobs:
 
   release:
     needs: build
-    if: startsWith(github.ref, 'refs/tags/')
+    if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -62,4 +69,5 @@ jobs:
 
       - uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
           files: firmware-esp32s3/*
