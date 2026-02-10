@@ -58,7 +58,7 @@ export function PinSetup(_props: RoutableProps) {
 
   return (
     <div style={{ padding: "2rem", maxWidth: "500px", margin: "0 auto" }}>
-      <PageHeader title="Change PIN" />
+      <PageHeader title="Change PIN" backTo="/send" />
 
       <div style={{ marginBottom: "1rem" }}>
         <label style={{ display: "block", marginBottom: "0.25rem", color: "#94a3b8" }}>

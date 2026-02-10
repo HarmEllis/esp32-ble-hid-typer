@@ -87,7 +87,7 @@ export function Settings(_props: RoutableProps) {
   if (checkingAccess) {
     return (
       <div style={{ padding: "2rem", maxWidth: "500px", margin: "0 auto" }}>
-        <PageHeader title="Settings" />
+        <PageHeader title="Settings" backTo="/send" />
         <p style={{ color: "#94a3b8" }}>Checking device access...</p>
       </div>
     );
@@ -95,7 +95,7 @@ export function Settings(_props: RoutableProps) {
 
   return (
     <div style={{ padding: "2rem", maxWidth: "500px", margin: "0 auto" }}>
-      <PageHeader title="Settings" />
+      <PageHeader title="Settings" backTo="/send" />
 
       <div style={{ marginBottom: "1.5rem" }}>
         <label style={{ display: "block", marginBottom: "0.5rem", color: "#94a3b8" }}>

@@ -6,7 +6,7 @@
 [x] the Typing status does not revert in the PWA when typing is finished
 [x] Move the Settings button to the left of the Disconnect button
 [x] Change the 'Set Up New Device' button and the 'Flas firmware' button so they are smaller and next to each other with a combined with that is equal to the 'Connect to Device' button
-[ ] The back button on the settings page takes you back to the home page instead of the Sent text page; this is also for the 'Change PIN' and 'Audit log' page (maybe use the browser history api?)
+[x] The back button on the settings page takes you back to the home page instead of the Sent text page; this is also for the 'Change PIN' and 'Audit log' page (maybe use the browser history api?)
 [ ] Add left and right arrow buttons and home and end buttons next to the Enter button
 [ ] Add ctrl+a, ctrl+c, ctrl+v and ctrl+enter to the shortcuts
 [ ] Add a virtual keyboard (default hidden like the shortcuts) to the pwa (that also works good on a mobile phone); Use an existing npm package if that will give the best result.

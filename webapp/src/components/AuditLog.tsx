@@ -31,7 +31,7 @@ export function AuditLog(_props: RoutableProps) {
 
   return (
     <div style={{ padding: "2rem", maxWidth: "600px", margin: "0 auto" }}>
-      <PageHeader title="Audit Log" />
+      <PageHeader title="Audit Log" backTo="/send" />
 
       <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
         <button
