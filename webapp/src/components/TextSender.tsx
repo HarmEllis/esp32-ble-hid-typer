@@ -199,20 +199,36 @@ export function TextSender(_props: RoutableProps) {
           </button>
           <h2 style={{ margin: 0 }}>Send Text</h2>
         </div>
-        <button
-          onClick={handleDisconnect}
-          style={{
-            padding: "0.25rem 0.75rem",
-            background: "transparent",
-            color: "#94a3b8",
-            border: "1px solid #334155",
-            borderRadius: "6px",
-            cursor: "pointer",
-            fontSize: "0.85rem",
-          }}
-        >
-          Disconnect
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <button
+            onClick={() => nav("/settings")}
+            style={{
+              padding: "0.25rem 0.75rem",
+              background: "transparent",
+              color: "#64748b",
+              border: "1px solid #334155",
+              borderRadius: "6px",
+              cursor: "pointer",
+              fontSize: "0.85rem",
+            }}
+          >
+            Settings
+          </button>
+          <button
+            onClick={handleDisconnect}
+            style={{
+              padding: "0.25rem 0.75rem",
+              background: "transparent",
+              color: "#94a3b8",
+              border: "1px solid #334155",
+              borderRadius: "6px",
+              cursor: "pointer",
+              fontSize: "0.85rem",
+            }}
+          >
+            Disconnect
+          </button>
+        </div>
       </div>
 
       <StatusBar />
@@ -378,23 +394,6 @@ export function TextSender(_props: RoutableProps) {
       )}
 
       {error && <p style={{ color: "#ef4444", marginTop: "1rem" }}>{error}</p>}
-
-      <div style={{ marginTop: "2rem" }}>
-        <button
-          onClick={() => nav("/settings")}
-          style={{
-            padding: "0.25rem 0.75rem",
-            background: "transparent",
-            color: "#64748b",
-            border: "1px solid #334155",
-            borderRadius: "6px",
-            cursor: "pointer",
-            fontSize: "0.85rem",
-          }}
-        >
-          Settings
-        </button>
-      </div>
     </div>
   );
 }
