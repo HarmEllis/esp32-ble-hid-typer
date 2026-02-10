@@ -17,4 +17,4 @@
 [x] Enable SysRq commands (advanced) does not show the collapsed SysRq commands section, I expected them below shortcuts
 [x] Wait with applying setting changes until mouse up event to prevent a laggy ux
 [x] While typing the 'Keyboard not mounted' message is shown while I can see it is typing correctly; when finished typing the keyboard is ready again
-[ ] Rename 'Keyboard not mounted' to 'Not connected to device as keyboard'
+[x] Rename 'Keyboard not mounted' to 'Not connected to device as keyboard'

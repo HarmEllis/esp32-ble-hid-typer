@@ -15,6 +15,7 @@ const CTRL_ALT_MODIFIER = 0x01 | 0x04;
 const CTRL_MODIFIER = 0x01;
 const ALT_MODIFIER = 0x04;
 const PRINT_SCREEN_KEYCODE = 0x46;
+const KEYBOARD_NOT_CONNECTED_MESSAGE = "Not connected to device as keyboard.";
 const CTRL_ALT_FUNCTION_SHORTCUTS = Array.from({ length: 12 }, (_, index) => ({
   label: `Ctrl+Alt+F${index + 1}`,
   modifier: CTRL_ALT_MODIFIER,
@@ -137,7 +138,9 @@ export function TextSender(_props: RoutableProps) {
       const ready = status.keyboard_connected !== false;
       setKeyboardConnected(ready);
       if (!ready) {
-        setError("USB keyboard is not connected. Attach the ESP32 to a host first.");
+        setError(
+          `${KEYBOARD_NOT_CONNECTED_MESSAGE} Connect the ESP32 to a host over USB first.`
+        );
       }
       return ready;
     } catch {
@@ -698,7 +701,7 @@ export function TextSender(_props: RoutableProps) {
 
       {!keyboardConnected && (
         <p style={{ color: "#f97316", marginTop: "1rem" }}>
-          USB keyboard is not mounted on a host, so send actions are disabled.
+          {KEYBOARD_NOT_CONNECTED_MESSAGE} Send actions are disabled.
         </p>
       )}
 
