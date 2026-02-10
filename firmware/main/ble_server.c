@@ -233,22 +233,24 @@ static int status_access_cb(uint16_t conn_handle, uint16_t attr_handle,
     if (auth_error != NULL) {
         len = snprintf(json, sizeof(json),
                        "{\"connected\":true,\"typing\":%s,\"queue\":%lu,"
-                       "\"authenticated\":%s,\"retry_delay_ms\":%lu,"
+                       "\"authenticated\":%s,\"keyboard_connected\":%s,\"retry_delay_ms\":%lu,"
                        "\"locked_out\":%s,\"auth_error\":\"%s\"}",
                        typing_engine_is_typing() ? "true" : "false",
                        (unsigned long)typing_engine_queue_length(),
                        s_authenticated ? "true" : "false",
+                       usb_hid_ready() ? "true" : "false",
                        (unsigned long)retry_delay_ms,
                        locked_out ? "true" : "false",
                        auth_error);
     } else {
         len = snprintf(json, sizeof(json),
                        "{\"connected\":true,\"typing\":%s,\"queue\":%lu,"
-                       "\"authenticated\":%s,\"retry_delay_ms\":%lu,"
+                       "\"authenticated\":%s,\"keyboard_connected\":%s,\"retry_delay_ms\":%lu,"
                        "\"locked_out\":%s}",
                        typing_engine_is_typing() ? "true" : "false",
                        (unsigned long)typing_engine_queue_length(),
                        s_authenticated ? "true" : "false",
+                       usb_hid_ready() ? "true" : "false",
                        (unsigned long)retry_delay_ms,
                        locked_out ? "true" : "false");
     }

@@ -58,6 +58,7 @@ export interface DeviceStatus {
   typing: boolean;
   queue: number;
   authenticated: boolean;
+  keyboard_connected?: boolean;
   retry_delay_ms: number;
   locked_out: boolean;
   auth_error?: "invalid_pin" | "rate_limited" | "locked_out";

@@ -19,6 +19,7 @@ export function TextSender(_props: RoutableProps) {
   const [error, setError] = useState("");
   const [connected, setConnected] = useState(true);
   const [checkingAuth, setCheckingAuth] = useState(true);
+  const [keyboardConnected, setKeyboardConnected] = useState(true);
 
   useEffect(() => {
     if (!ble.isConnected()) {
@@ -31,19 +32,61 @@ export function TextSender(_props: RoutableProps) {
         nav("/connect");
         return;
       }
+      setKeyboardConnected(status.keyboard_connected !== false);
       setCheckingAuth(false);
     }).catch(() => {
       nav("/connect");
     });
 
+    ble.onStatusChange((value) => {
+      try {
+        const status = JSON.parse(value) as { keyboard_connected?: boolean };
+        if (typeof status.keyboard_connected === "boolean") {
+          setKeyboardConnected(status.keyboard_connected);
+        }
+      } catch {
+        /* ignore parse errors */
+      }
+    }).catch(() => {
+      /* subscription can fail during reconnect transitions */
+    });
+
+    const interval = window.setInterval(() => {
+      ble.readStatusObject().then((status) => {
+        setKeyboardConnected(status.keyboard_connected !== false);
+      }).catch(() => {
+        /* ignore transient read failures */
+      });
+    }, 1000);
+
     ble.onDisconnect(() => {
       setConnected(false);
     });
+
+    return () => {
+      window.clearInterval(interval);
+    };
   }, []);
+
+  const ensureKeyboardConnected = async () => {
+    try {
+      const status = await ble.readStatusObject();
+      const ready = status.keyboard_connected !== false;
+      setKeyboardConnected(ready);
+      if (!ready) {
+        setError("USB keyboard is not connected. Attach the ESP32 to a host first.");
+      }
+      return ready;
+    } catch {
+      setError("Failed to read keyboard connection status");
+      return false;
+    }
+  };
 
   const handleSend = async () => {
     if (!text.trim()) return;
     setError("");
+    if (!(await ensureKeyboardConnected())) return;
     setSending(true);
     try {
       await ble.sendText(text);
@@ -66,6 +109,7 @@ export function TextSender(_props: RoutableProps) {
   const handleSpecialKey = async (payload: string) => {
     if (sendingSpecial || sending) return;
     setError("");
+    if (!(await ensureKeyboardConnected())) return;
     setSendingSpecial(true);
     try {
       await ble.sendText(payload);
@@ -79,6 +123,7 @@ export function TextSender(_props: RoutableProps) {
   const handleShortcut = async (modifier: number, keycode: number) => {
     if (sendingSpecial || sending) return;
     setError("");
+    if (!(await ensureKeyboardConnected())) return;
     setSendingSpecial(true);
     try {
       await ble.sendPinAction({ action: "key_combo", modifier, keycode });
@@ -201,22 +246,25 @@ export function TextSender(_props: RoutableProps) {
       >
         <button
           onClick={handleSend}
-          disabled={sending || sendingSpecial || !text.trim()}
+          disabled={sending || sendingSpecial || !keyboardConnected || !text.trim()}
           style={{
             padding: "0.5rem 1.5rem",
             background: "#3b82f6",
             color: "white",
             border: "none",
             borderRadius: "6px",
-            cursor: sending || sendingSpecial || !text.trim() ? "not-allowed" : "pointer",
-            opacity: sending || sendingSpecial || !text.trim() ? 0.5 : 1,
+            cursor:
+              sending || sendingSpecial || !keyboardConnected || !text.trim()
+                ? "not-allowed"
+                : "pointer",
+            opacity: sending || sendingSpecial || !keyboardConnected || !text.trim() ? 0.5 : 1,
             fontSize: "1rem",
           }}
         >
           {sending ? "Sending..." : "Send"}
         </button>
 
-        <ClipboardPaste disabled={sending || sendingSpecial} />
+        <ClipboardPaste disabled={sending || sendingSpecial || !keyboardConnected} />
 
         <button
           onClick={handleAbort}
@@ -245,45 +293,45 @@ export function TextSender(_props: RoutableProps) {
       >
         <button
           onClick={() => handleSpecialKey("\b")}
-          disabled={sending || sendingSpecial}
+          disabled={sending || sendingSpecial || !keyboardConnected}
           style={{
             padding: "0.45rem 0.9rem",
             background: "#374151",
             color: "white",
             border: "none",
             borderRadius: "6px",
-            cursor: sending || sendingSpecial ? "not-allowed" : "pointer",
-            opacity: sending || sendingSpecial ? 0.5 : 1,
+            cursor: sending || sendingSpecial || !keyboardConnected ? "not-allowed" : "pointer",
+            opacity: sending || sendingSpecial || !keyboardConnected ? 0.5 : 1,
           }}
         >
           Backspace
         </button>
         <button
           onClick={() => handleSpecialKey("\u007f")}
-          disabled={sending || sendingSpecial}
+          disabled={sending || sendingSpecial || !keyboardConnected}
           style={{
             padding: "0.45rem 0.9rem",
             background: "#374151",
             color: "white",
             border: "none",
             borderRadius: "6px",
-            cursor: sending || sendingSpecial ? "not-allowed" : "pointer",
-            opacity: sending || sendingSpecial ? 0.5 : 1,
+            cursor: sending || sendingSpecial || !keyboardConnected ? "not-allowed" : "pointer",
+            opacity: sending || sendingSpecial || !keyboardConnected ? 0.5 : 1,
           }}
         >
           Delete
         </button>
         <button
           onClick={() => handleSpecialKey("\n")}
-          disabled={sending || sendingSpecial}
+          disabled={sending || sendingSpecial || !keyboardConnected}
           style={{
             padding: "0.45rem 0.9rem",
             background: "#374151",
             color: "white",
             border: "none",
             borderRadius: "6px",
-            cursor: sending || sendingSpecial ? "not-allowed" : "pointer",
-            opacity: sending || sendingSpecial ? 0.5 : 1,
+            cursor: sending || sendingSpecial || !keyboardConnected ? "not-allowed" : "pointer",
+            opacity: sending || sendingSpecial || !keyboardConnected ? 0.5 : 1,
           }}
         >
           Enter
@@ -306,15 +354,15 @@ export function TextSender(_props: RoutableProps) {
             <button
               key={shortcut.label}
               onClick={() => handleShortcut(shortcut.modifier, shortcut.keycode)}
-              disabled={sending || sendingSpecial}
+              disabled={sending || sendingSpecial || !keyboardConnected}
               style={{
                 padding: "0.45rem 0.75rem",
                 background: "#1e293b",
                 color: "#cbd5e1",
                 border: "1px solid #334155",
                 borderRadius: "6px",
-                cursor: sending || sendingSpecial ? "not-allowed" : "pointer",
-                opacity: sending || sendingSpecial ? 0.5 : 1,
+                cursor: sending || sendingSpecial || !keyboardConnected ? "not-allowed" : "pointer",
+                opacity: sending || sendingSpecial || !keyboardConnected ? 0.5 : 1,
               }}
             >
               {shortcut.label}
@@ -322,6 +370,12 @@ export function TextSender(_props: RoutableProps) {
           ))}
         </div>
       </details>
+
+      {!keyboardConnected && (
+        <p style={{ color: "#f97316", marginTop: "1rem" }}>
+          USB keyboard is not mounted on a host, so send actions are disabled.
+        </p>
+      )}
 
       {error && <p style={{ color: "#ef4444", marginTop: "1rem" }}>{error}</p>}
 

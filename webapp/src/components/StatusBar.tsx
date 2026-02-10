@@ -13,6 +13,7 @@ export function StatusBar() {
         typing: false,
         queue: 0,
         authenticated: false,
+        keyboard_connected: true,
         retry_delay_ms: 0,
         locked_out: false,
       };
@@ -50,6 +51,18 @@ export function StatusBar() {
     }).catch(() => {
       /* Read may fail during security negotiation */
     });
+
+    const interval = window.setInterval(() => {
+      ble.readStatusObject().then((value) => {
+        applyUpdate(value);
+      }).catch(() => {
+        /* Ignore intermittent read failures */
+      });
+    }, 1000);
+
+    return () => {
+      window.clearInterval(interval);
+    };
   }, []);
 
   if (!connected) return null;
@@ -96,6 +109,14 @@ export function StatusBar() {
               ({status.queue} queued)
             </span>
           )}
+        </>
+      )}
+      {status && (
+        <>
+          <span style={{ margin: "0 0.5rem" }}>|</span>
+          <span style={{ color: status.keyboard_connected ? "#22c55e" : "#ef4444" }}>
+            {status.keyboard_connected ? "Keyboard ready" : "Keyboard not mounted"}
+          </span>
         </>
       )}
     </div>
