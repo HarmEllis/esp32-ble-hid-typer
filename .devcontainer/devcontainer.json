@@ -21,7 +21,8 @@
         "esbenp.prettier-vscode",
         "dbaeumer.vscode-eslint",
         "Anthropic.claude-code",
-        "github.vscode-github-actions"
+        "github.vscode-github-actions",
+        "ms-vscode.cpptools-extension-pack"
       ],
       "settings": {
         "idf.espIdfPath": "/opt/esp/idf",
