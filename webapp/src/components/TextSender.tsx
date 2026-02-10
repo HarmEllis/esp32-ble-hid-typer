@@ -33,27 +33,27 @@ const NAVIGATION_KEYS = [
   { label: "Home", keycode: 0x4a },
   { label: "End", keycode: 0x4d },
 ];
-const SYSRQ_KEYS = [
-  "h",
-  "b",
-  "c",
-  "d",
-  "e",
-  "f",
-  "i",
-  "k",
-  "m",
-  "n",
-  "o",
-  "p",
-  "q",
-  "r",
-  "s",
-  "t",
-  "u",
-  "v",
-  "w",
-  "z",
+const SYSRQ_COMMANDS = [
+  { key: "h", action: "Show SysRq help" },
+  { key: "b", action: "Immediate reboot" },
+  { key: "c", action: "Crash kernel (panic)" },
+  { key: "d", action: "Show lock state" },
+  { key: "e", action: "Send SIGTERM to tasks" },
+  { key: "f", action: "Invoke OOM killer" },
+  { key: "i", action: "Send SIGKILL to tasks" },
+  { key: "k", action: "Secure access key (SAK)" },
+  { key: "m", action: "Dump memory info" },
+  { key: "n", action: "Make RT tasks nice-able" },
+  { key: "o", action: "Power off system" },
+  { key: "p", action: "Dump CPU registers" },
+  { key: "q", action: "Dump hrtimer data" },
+  { key: "r", action: "Restore keyboard mode" },
+  { key: "s", action: "Sync filesystems" },
+  { key: "t", action: "Dump task list" },
+  { key: "u", action: "Remount read-only" },
+  { key: "v", action: "Restore framebuffer console" },
+  { key: "w", action: "Dump blocked tasks" },
+  { key: "z", action: "Dump ftrace buffer" },
 ] as const;
 
 function getLetterKeycode(letter: string): number | null {
@@ -633,10 +633,10 @@ export function TextSender(_props: RoutableProps) {
               gap: "0.5rem",
             }}
           >
-            {SYSRQ_KEYS.map((key) => (
+            {SYSRQ_COMMANDS.map((command) => (
               <button
-                key={key}
-                onClick={() => handleSysRqCommand(key)}
+                key={command.key}
+                onClick={() => handleSysRqCommand(command.key)}
                 disabled={sending || sendingSpecial || !keyboardConnected}
                 style={{
                   padding: "0.45rem 0.75rem",
@@ -649,7 +649,7 @@ export function TextSender(_props: RoutableProps) {
                   opacity: sending || sendingSpecial || !keyboardConnected ? 0.5 : 1,
                 }}
               >
-                SysRq+{key.toUpperCase()}
+                {`${command.action} (Alt+PrintScreen+${command.key.toUpperCase()})`}
               </button>
             ))}
           </div>
