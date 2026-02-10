@@ -16,7 +16,6 @@ export const NORMAL_SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
 export const TEXT_INPUT_UUID = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
 export const STATUS_UUID = "6e400003-b5a3-f393-e0a9-e50e24dcca9e";
 export const PIN_MANAGEMENT_UUID = "6e400004-b5a3-f393-e0a9-e50e24dcca9e";
-export const WIFI_CONFIG_UUID = "6e400005-b5a3-f393-e0a9-e50e24dcca9e";
 export const CERT_FINGERPRINT_UUID = "6e400006-b5a3-f393-e0a9-e50e24dcca9e";
 
 /* Provisioning status values */
@@ -40,19 +39,12 @@ export interface SetPinCommand {
   pin: string;
 }
 
-export interface SetWifiCommand {
-  command: "set_wifi";
-  ssid: string;
-  password: string;
-}
-
 export interface CompleteCommand {
   command: "complete";
 }
 
 export type ProvisioningCommand =
   | SetPinCommand
-  | SetWifiCommand
   | CompleteCommand;
 
 export interface ProvisioningResponse {

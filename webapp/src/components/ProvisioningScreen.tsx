@@ -8,8 +8,6 @@ export function ProvisioningScreen(_props: RoutableProps) {
   const [step, setStep] = useState<"connect" | "setup" | "done">("connect");
   const [pin, setPin] = useState("");
   const [pinConfirm, setPinConfirm] = useState("");
-  const [wifiSsid, setWifiSsid] = useState("");
-  const [wifiPassword, setWifiPassword] = useState("");
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
@@ -52,21 +50,6 @@ export function ProvisioningScreen(_props: RoutableProps) {
         setError(pinResp.message || "Failed to set PIN");
         setBusy(false);
         return;
-      }
-
-      if (wifiSsid) {
-        setStatus("Saving WiFi credentials...");
-        const wifiResult = await ble.sendProvisioningCommand({
-          command: "set_wifi",
-          ssid: wifiSsid,
-          password: wifiPassword,
-        });
-        const wifiResp = JSON.parse(wifiResult);
-        if (!wifiResp.success) {
-          setError(wifiResp.message || "Failed to save WiFi");
-          setBusy(false);
-          return;
-        }
       }
 
       setStatus("Completing setup...");
@@ -171,52 +154,6 @@ export function ProvisioningScreen(_props: RoutableProps) {
           }}
         />
       </div>
-
-      <details style={{ marginBottom: "1.5rem" }}>
-        <summary style={{ cursor: "pointer", color: "#94a3b8" }}>
-          WiFi (optional)
-        </summary>
-        <div style={{ marginTop: "0.75rem" }}>
-          <div style={{ marginBottom: "0.75rem" }}>
-            <label style={{ display: "block", marginBottom: "0.25rem", color: "#94a3b8" }}>
-              SSID
-            </label>
-            <input
-              type="text"
-              value={wifiSsid}
-              onInput={(e) => setWifiSsid((e.target as HTMLInputElement).value)}
-              style={{
-                width: "100%",
-                padding: "0.5rem",
-                background: "#1e293b",
-                border: "1px solid #334155",
-                borderRadius: "6px",
-                color: "white",
-                boxSizing: "border-box",
-              }}
-            />
-          </div>
-          <div>
-            <label style={{ display: "block", marginBottom: "0.25rem", color: "#94a3b8" }}>
-              Password
-            </label>
-            <input
-              type="password"
-              value={wifiPassword}
-              onInput={(e) => setWifiPassword((e.target as HTMLInputElement).value)}
-              style={{
-                width: "100%",
-                padding: "0.5rem",
-                background: "#1e293b",
-                border: "1px solid #334155",
-                borderRadius: "6px",
-                color: "white",
-                boxSizing: "border-box",
-              }}
-            />
-          </div>
-        </div>
-      </details>
 
       <button
         onClick={handleProvision}
