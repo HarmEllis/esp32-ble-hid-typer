@@ -1,6 +1,7 @@
 {
   "enabledPlugins": {
-    "everything-claude-code@everything-claude-code": true
+    "everything-claude-code@everything-claude-code": true,
+    "tmux-cli@cctools-plugins": true
   },
   "extraKnownMarketplaces": {
     "everything-claude-code": {
@@ -8,6 +9,13 @@
         "source": "github",
         "repo": "affaan-m/everything-claude-code"
       }
+    },
+    "cctools-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "pchalasani/claude-code-tools"
+      }
+
     }
   }
 }
