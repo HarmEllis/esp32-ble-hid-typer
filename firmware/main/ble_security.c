@@ -37,8 +37,7 @@ esp_err_t ble_security_init(void)
     ble_hs_cfg.sm_our_key_dist = 0;
     ble_hs_cfg.sm_their_key_dist = 0;
 
-    ESP_LOGI(TAG, "BLE security initialized (app-layer auth mode, passkey=%06lu)",
-             (unsigned long)s_passkey);
+    ESP_LOGI(TAG, "BLE security initialized (app-layer auth mode)");
     return ESP_OK;
 }
 
