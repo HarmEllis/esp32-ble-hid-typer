@@ -1,356 +1,221 @@
-# ESP32 BLE HID Typer — Feature Overview
+# ESP32 BLE HID Typer — Feature Overview (Code-Accurate)
 
-Structured overview of all features, grouped by domain.
+This document describes what the repository actually implements today.
 
----
+## Status Legend
 
-## 1. USB HID Keyboard
+- `Implemented`: Present in current code and wired end-to-end.
+- `Partial`: Present but limited, stubbed, or missing full UX/validation.
+- `Planned (Phase 3)`: Not implemented yet.
 
-| Feature | Description |
-|---|---|
-| USB HID device | ESP32-S3 presents itself as a standard USB keyboard via TinyUSB |
-| Typing engine | Converts UTF-8 text to HID keycodes (US layout) |
-| Rate limiting | Configurable 5-100ms delay per keystroke, max 1000 chars/min |
-| Text queue | Max 8KB RAM buffer, FIFO processing |
-| Abort | Clear queue and stop typing immediately |
-| Progress | Progress notifications (current/total) via BLE and WSS |
-| USB OTG pins | GPIO19 (D-), GPIO20 (D+) — native USB |
+## 1. Firmware Capabilities
 
----
+### 1.1 Boot, Modes, and Core Runtime
 
-## 2. Provisioning (Initial Setup)
+| Capability | Status | Notes |
+|---|---|---|
+| Boot initializes NVS, LED, audit log, button monitor, serial console | Implemented | In `main.c` startup sequence |
+| Automatic mode switch by PIN presence | Implemented | No PIN -> provisioning mode; PIN present -> normal mode |
+| ESP32-S3 target | Implemented | Build and USB setup are S3-focused |
 
-| Feature | Description |
-|---|---|
-| Automatic detection | No PIN in NVS → provisioning mode at boot |
-| BLE broadcast | Device advertises as "ESP32-HID-SETUP" |
-| LED indicator | Orange slow blink (1s on/off) |
-| PIN setup | Mandatory 6 digits, not 000000, not sequential, not repetitive |
-| WiFi setup | Optional SSID + password via BLE |
-| Improv WiFi | Compatible with Improv WiFi protocol for generic tools |
-| Complete | After provisioning → automatic reboot into normal mode |
-| USB HID disabled | No keyboard functionality during provisioning |
+### 1.2 USB HID + Typing Engine
 
----
+| Capability | Status | Notes |
+|---|---|---|
+| TinyUSB HID keyboard device | Implemented | Standard keyboard descriptor |
+| UTF-8 input path into typing queue | Implemented | Non-ASCII bytes are skipped currently |
+| Queueing and async typing task | Implemented | 8KB ring queue (`TYPING_QUEUE_MAX_SIZE=8192`) |
+| Abort typing | Implemented | BLE action `abort` |
+| Typing delay configuration (5-100 ms) | Implemented | Runtime + NVS persistence via `set_config` |
+| Progress callback/notification | Implemented | Sent on status notify characteristic |
+| 1000 chars/min hard cap | Partial | Documented target; no explicit chars/min throttle in current typing loop |
 
-## 3. Bluetooth Low Energy (BLE)
+### 1.3 Provisioning Mode (BLE)
 
-### 3.1 GATT Services — Normal Mode
+| Capability | Status | Notes |
+|---|---|---|
+| Provisioning advertisement (`ESP32-HID-SETUP`) | Implemented | Dedicated provisioning service |
+| Improv-compatible UUID layout | Implemented | Service and char UUIDs match code constants |
+| `set_pin` command | Implemented | Uses same PIN format rules as auth module |
+| `set_wifi` command | Implemented | Stores SSID/password only; no connection attempt |
+| `complete` command + reboot | Implemented | Requires PIN set |
+| Provisioning security | Implemented | No BLE pairing in provisioning mode by design |
 
-| Characteristic | UUID (short) | Permissions | Purpose |
+### 1.4 Normal Mode BLE Service
+
+| Characteristic | UUID | Status | Notes |
 |---|---|---|---|
-| Text Input | `6e400002` | Write | Send text to type |
-| Status | `6e400003` | Read, Notify | Connection status and typing progress |
-| PIN Management | `6e400004` | Write | Change and verify PIN |
-| WiFi Config | `6e400005` | Write, Read | Scan, connect, manage WiFi |
-| Certificate Fingerprint | `6e400006` | Read | SHA256 fingerprint of TLS certificate |
-| SysRq | `6e400007` | Write | Send Linux SysRq magic keys |
+| Text Input | `6e400002` | Implemented | Requires authenticated session |
+| Status | `6e400003` | Implemented | Read + notify JSON status |
+| PIN Management | `6e400004` | Implemented | Auth/change PIN/config/logs/abort/key_combo |
+| WiFi Config | `6e400005` | Partial | Stub (`{"error":"not_available"}` on read) |
+| Cert Fingerprint | `6e400006` | Partial | Stub (64 zeroes) |
 
-### 3.2 GATT Services — Provisioning Mode
+### 1.5 Authentication and Access Control
 
-| Characteristic | UUID (short) | Permissions | Purpose |
-|---|---|---|---|
-| Status | `...8001` | Read, Notify | Provisioning status (ready/provisioning/provisioned) |
-| Error | `...8002` | Read, Notify | Error codes (invalid_pin, unable_to_connect, unknown) |
-| RPC Command | `...8003` | Write | Provisioning commands (set_pin, set_wifi, complete) |
-| RPC Result | `...8004` | Read, Notify | Command responses (JSON) |
-
-### 3.3 Security
-
-| Feature | Description |
-|---|---|
-| LE Secure Connections | Mandatory, no legacy pairing |
-| Passkey pairing | PIN as passkey for OS pairing prompt |
-| Encrypted connections | Unencrypted connections are rejected |
-| Bonding | Only most recent bonding kept |
-
----
-
-## 4. WiFi & WebSocket
-
-### 4.1 WiFi Manager
-
-| Feature | Description |
-|---|---|
-| AP+STA coexistence | Simultaneous access point and station mode |
-| Network scan | Retrieve available networks with RSSI and encryption type |
-| Connect | Connect to network via SSID + password |
-| Saved networks | Management of stored WiFi credentials in encrypted NVS |
-| Forget | Remove individual network from saved list |
-| Configuration via BLE | WiFi management via BLE GATT characteristic |
-
-### 4.2 HTTPS / WSS Server
-
-| Feature | Description |
-|---|---|
-| HTTPS server | Port 8443, ECDSA P-256 self-signed certificate |
-| WSS endpoint | `wss://<ip>:8443/ws` |
-| PIN authentication | `Authorization: PIN <code>` header per connection |
-| Idle timeout | 5 minutes of inactivity → disconnect |
-| TLS 1.2+ | Minimum TLS version enforced |
-
-### 4.3 HTTP Server (Certificate Download)
-
-| Feature | Description |
-|---|---|
-| HTTP server | Port 80, only for certificate download |
-| `/cert.pem` | PEM format certificate |
-| `/cert.crt` | DER format certificate |
-| No other endpoints | Minimal attack surface |
-
-### 4.4 WebSocket Protocol
-
-**Client → ESP32:**
-
-| Type | Purpose |
-|---|---|
-| `text` | Send text to type |
-| `wifi_scan` | Scan WiFi networks |
-| `wifi_connect` | Connect to WiFi network |
-| `ota_update` | Start OTA firmware update |
-| `sysrq` | Send SysRq magic key |
-| `abort` | Stop current typing action |
-| `get_logs` | Retrieve audit log |
-| `ping` | Heartbeat |
-
-**ESP32 → Client:**
-
-| Type | Purpose |
-|---|---|
-| `status` | Connection status and queue info |
-| `wifi_scan_result` | List of discovered networks |
-| `typing_progress` | Typing progress (current/total) |
-| `error` | Error message |
-| `logs` | Audit log data |
-| `pong` | Heartbeat response |
-
-### 4.5 Connectivity Manager
-
-| Setting | Default | Description |
+| Capability | Status | Notes |
 |---|---|---|
-| Disable BLE when WiFi connected | On | Prevents simultaneous BLE + WiFi command channels |
-| Permanently disable BLE | Off | Disable BLE entirely |
-| Enable BLE when WiFi not connected | On | Automatically enable BLE as fallback |
+| 6-digit PIN validation (disallow weak patterns) | Implemented | Same constraints in firmware and webapp validator |
+| Session auth required for sensitive BLE actions | Implemented | `auth` / `verify` action gates typing/config/logs |
+| Rate limit and exponential backoff | Implemented | Retry delay exposed in status payload |
+| Lockout after 10 failures | Implemented | Persists in NVS until reset |
+| BLE link-layer security (SC/bonding/MITM) | Partial | Code path exists but current normal-mode config disables it (`sm_sc = 0`, `sm_bonding = 0`, `sm_mitm = 0`) |
 
----
+### 1.6 LED and Physical Reset
 
-## 5. Security
-
-### 5.1 Certificate Trust
-
-| Feature | Description |
-|---|---|
-| ECDSA P-256 certificate | Self-signed, generated at first boot |
-| SHA256 fingerprint | Available via BLE and serial console |
-| Fingerprint verification | PWA compares BLE fingerprint with downloaded certificate |
-| Certificate download | Via HTTP (unencrypted), secured by fingerprint verification |
-| OS import | Manual import into trust store (macOS, Windows, Linux) |
-
-### 5.2 PIN & Authentication
-
-| Feature | Description |
-|---|---|
-| 6-digit PIN | Mandatory, set via provisioning flow |
-| Rate limiting | Max 3 attempts per 60 seconds |
-| Exponential backoff | Increasing delay after failed attempts |
-| Device lockout | After 10 failed attempts, requires physical reset |
-| No default PIN | PIN must be consciously chosen by user |
-
-### 5.3 OTA Firmware Signing (Application-level)
-
-| Feature | Description |
-|---|---|
-| ECDSA P-256 signature | Application-level OTA signature verification |
-| Embedded public key | Public key compiled into firmware binary (not in eFuse) |
-| OTA verification | Firmware verifies signature before accepting OTA update |
-| USB flash unrestricted | USB flashing always allowed with any firmware |
-| No Secure Boot | No eFuse burning — hardware remains fully reflashable |
-| Open-source friendly | Users can always repurpose their hardware with other software |
-
-### 5.4 NVS Encryption (Partition-based)
-
-| Feature | Description |
-|---|---|
-| Encrypted NVS | All sensitive data encrypted in flash |
-| Partition-based keys | Encryption keys stored in `nvs_keys` partition (not in eFuse) |
-| Software-level protection | Protects against casual flash readout |
-| No eFuse burning | Hardware remains fully reflashable |
-| Stored data | PIN, WiFi credentials, certificates, audit log, configuration |
-| Trade-off | Without flash encryption (eFuse), keys are readable with physical access |
-
----
-
-## 6. NeoPixel LED Feedback
-
-| State | Color | Pattern |
+| Capability | Status | Notes |
 |---|---|---|
-| Provisioning mode | Orange | Slow blink (1s on/off) |
-| Not connected | Off | — |
-| BLE connected | Blue | Solid |
-| WiFi connected | White | Solid |
-| WSS connected | Yellow | Solid |
-| Typing active | Red | Flashing (500ms on/off) |
-| Factory reset warning | Yellow | Rapid flash (100ms on/off) |
-| Factory reset confirmed | Red | Solid (1s) |
-| Error | Red | Rapid blink (100ms on/off) |
-| OTA update | Purple | Pulsing |
+| Provisioning indicator (orange slow blink) | Implemented | `LED_STATE_PROVISIONING` |
+| BLE connected indicator (blue solid) | Implemented | Set on connect |
+| BOOT hold warning/confirm LEDs | Implemented | Yellow fast blink then red confirm |
+| Typing LED pattern | Partial | Runtime typing path uses key-timed orange blink; `LED_STATE_TYPING` (red 500ms flash) exists but is currently unused by typing engine flow |
+| WiFi/WSS/OTA LED states | Planned (Phase 3) | Enum states exist but flows are not active |
 
-- Default brightness: 5%, configurable 1-100% via PWA
-- Hardware: WS2812 NeoPixel on GPIO48 (ESP32-S3 DevKit)
+### 1.7 Reset, Serial, and Audit
 
----
-
-## 7. Factory Reset
-
-### 7.1 Via BOOT Button (primary)
-
-| Step | Timing | LED |
+| Capability | Status | Notes |
 |---|---|---|
-| Normal | 0-2 seconds | Current status |
-| Warning | 2-10 seconds | Yellow rapid flash |
-| Confirmed | 10+ seconds | Solid red (1s) |
-| Cancel | Release before 10s | Return to normal |
+| BOOT button factory reset (10s hold) | Implemented | Wipes credentials/auth/config |
+| Serial command console (115200) | Implemented | `status`, `heap`, `factory_reset`, `full_reset`, `reboot`, `help` |
+| Full reset command | Implemented | Erases all known NVS namespaces including `certs` |
+| Audit ring buffer + NVS persistence | Implemented | 4KB buffer, loads on boot, persists on shutdown |
+| Audit retrieval via BLE action | Partial | Firmware sends log payload via status notify; web UI path is basic and limited |
 
-Wipes: PIN, WiFi credentials, AP settings. Preserves: certificate, bonding.
+## 2. Webapp Capabilities
 
-### 7.2 Via Serial Console (optional)
+### 2.1 App Shell and Routing
 
-| Command | Effect |
-|---|---|
-| `factory_reset` | Same as BOOT button (wipes PIN, WiFi) |
-| `full_reset` | + New certificate + wipe bonding + wipe audit log |
-
----
-
-## 8. OTA Firmware Updates
-
-| Feature | Description |
-|---|---|
-| Dual partitions | `ota_0` + `ota_1` with rollback support |
-| App-level signature verification | Only correctly signed firmware accepted via OTA (ECDSA P-256) |
-| Embedded public key | Verification key compiled into firmware, not in eFuse |
-| Download source | GitHub Releases (firmware + detached signature) |
-| Rollback | Automatic on crash after update |
-| USB flash unrestricted | USB flashing always allowed with any firmware (no Secure Boot) |
-| LED indicator | Purple pulsing during update |
-
----
-
-## 9. SysRq Magic Keys (Linux)
-
-| Feature | Description |
-|---|---|
-| HID sequence | Alt + PrintScreen + key |
-| Supported keys | h, b, c, d, e, f, i, k, m, n, o, p, q, r, s, t, u, v, w, z |
-| REISUB | Automated safe reboot sequence with 2s delays |
-| Opt-in | Hidden behind toggle in settings (localStorage) |
-| Confirmation | Per action: dialog + checkbox + 10s cooldown |
-| Audit logging | Every use is logged |
-
----
-
-## 10. Audit Logging
-
-| Feature | Description |
-|---|---|
-| Format | Syslog RFC5424 |
-| Storage | 4KB ring buffer in RAM |
-| Persistence | To encrypted NVS at reboot |
-| Events | Auth attempts, OTA, SysRq, factory resets, PIN changes, WiFi |
-| Retrieval | Via PWA (BLE or WSS) |
-| Sensitive data | Never logged (no PINs, passwords, typed text) |
-| Future | Remote syslog server (TLS) |
-
----
-
-## 11. Serial Console (Optional)
-
-| Command | Description |
-|---|---|
-| `status` | Connection status, WiFi, IP, uptime, heap |
-| `cert_fingerprint` | Display SHA256 fingerprint |
-| `factory_reset` | Factory reset (same as BOOT button) |
-| `full_reset` | Full reset including certificate |
-| `reboot` | Restart device |
-| `heap` | Detailed heap usage |
-| `wifi_scan` | Scan WiFi networks |
-| `help` | Show available commands |
-
-Configuration: 115200 baud, 8N1. Requires separate USB-UART bridge.
-
----
-
-## 12. PWA (Preact Web App)
-
-### 12.1 Screens
-
-| Screen | Purpose |
-|---|---|
-| ConnectionScreen | Mode detection, BLE or Network choice |
-| ProvisioningScreen | Initial setup: PIN + WiFi via BLE |
-| BleConnect | BLE connection in normal mode |
-| NetworkConnect | IP + PIN input for WSS |
-| CertificateSetup | Certificate download + fingerprint verification |
-| PinSetup | Optionally PIN change |
-| TextSender | Enter and send text |
-| ClipboardPaste | Paste & send from clipboard |
-| StatusBar | Connection status and typing progress |
-| WifiConfig | WiFi scan, connect, manage |
-| FirmwareFlash | Flash firmware via Web Serial |
-| OtaUpdate | OTA update via WiFi |
-| SerialMonitor | Serial console (optional) |
-| SysRqPanel | SysRq menu with safety controls |
-| AuditLog | Audit log viewer |
-| Settings | Settings (speed, LED, PIN, SysRq) |
-| Guide | Setup instructions and explanations |
-| SecurityWarning | Security information and warnings |
-
-### 12.2 Technology
-
-| Component | Technology |
-|---|---|
-| Framework | Preact + TypeScript |
-| Bundler | Vite |
-| PWA | vite-plugin-pwa (Workbox) |
-| BLE | Web Bluetooth API |
-| Serial | Web Serial API + esptool-js |
-| Hosting | GitHub Pages (free HTTPS) |
-| Offline | Service worker for full offline support |
-
-### 12.3 Browser Compatibility
-
-- Chromium required: Chrome, Edge, Opera (for Web Bluetooth and Web Serial)
-- Firefox and Safari: not supported
-
----
-
-## 13. CI/CD (GitHub Actions)
-
-| Workflow | Trigger | Action |
+| Route | Component | Status |
 |---|---|---|
-| `deploy-webapp.yml` | Push to `main` (path: `webapp/**`) | Build PWA → deploy to GitHub Pages |
-| `build-firmware.yml` | Push of tag `v*` | Build firmware → sign for OTA → GitHub Release |
+| `/` | `ConnectionScreen` | Implemented |
+| `/provision` | `ProvisioningScreen` | Implemented |
+| `/connect` | `BleConnect` | Implemented |
+| `/send` | `TextSender` | Implemented |
+| `/pin` | `PinSetup` | Implemented |
+| `/settings` | `Settings` | Implemented |
+| `/logs` | `AuditLog` | Implemented (basic) |
+| `/flash` | `FirmwareFlash` | Implemented |
 
----
+### 2.2 Provisioning UX
 
-## 14. Development Environment
+| Capability | Status | Notes |
+|---|---|---|
+| Scan/connect provisioning device | Implemented | Uses name prefix + provisioning service UUID |
+| PIN setup + validation + complete | Implemented | End-to-end with firmware provisioning RPC |
+| WiFi fields in setup screen | Planned (Phase 3) | Firmware command exists, UI not exposed |
 
-| Component | Technology |
-|---|---|
-| Container | DevContainer (VS Code) |
-| Firmware toolchain | ESP-IDF v5.3+ in Docker image |
-| Webapp toolchain | Node.js 20 LTS |
-| Flashing | Via browser (Web Serial), no USB passthrough |
-| OS support | Linux, macOS, Windows (via DevContainer) |
+### 2.3 Normal BLE UX
 
----
+| Capability | Status | Notes |
+|---|---|---|
+| Connect to normal BLE service | Implemented | Via Web Bluetooth |
+| Unlock session with PIN (`auth`) | Implemented | Handles retry delay and lockout states |
+| Text send + clipboard send | Implemented | Uses Text Input characteristic |
+| Abort current typing | Implemented | Uses PIN action `abort` |
+| Status bar (typing/auth/keyboard mount) | Implemented | Poll + notify update path |
+| Settings update (typing delay/brightness) | Implemented | Uses `set_config` action |
+| PIN change screen | Implemented | Uses `set` action |
 
-## 15. Supported Hardware
+### 2.4 Keyboard Utilities and Advanced Input
 
-| Chip | BLE | WiFi | USB OTG | Status |
-|---|---|---|---|---|
-| ESP32-S3 | ✅ | ✅ | GPIO19/20 | **Supported** |
-| ESP32-P4 | ✅ | ✅ | Per datasheet | Planned |
-| ESP32-S2 | ❌ | ✅ | — | Not supported (no BLE) |
+| Capability | Status | Notes |
+|---|---|---|
+| Virtual keyboard (simple/full) | Implemented | Powered by `simple-keyboard` |
+| Shortcut buttons (Ctrl/Alt/Fn/nav) | Implemented | Uses generic `key_combo` action |
+| SysRq panel in sender (toggle-gated) | Partial | Implemented as key combos; no firmware-native SysRq action or cooldown/confirm workflow |
 
-**Board requirements:** USB OTG pins exposed, WS2812 NeoPixel (GPIO48), BOOT button (GPIO0).
+### 2.5 Firmware Flashing (Web Serial)
+
+| Capability | Status | Notes |
+|---|---|---|
+| Connect over Web Serial (`esptool-js`) | Implemented | Browser must support Web Serial |
+| Flash from local files | Implemented | Bootloader + partition table + app slots |
+| Flash from hosted release manifest | Implemented | Reads `webapp/public/firmware/releases.json` |
+| Post-flash reset | Implemented | Hard reset via esptool action |
+
+### 2.6 PWA and Browser Support
+
+| Capability | Status | Notes |
+|---|---|---|
+| Vite + Preact + TypeScript | Implemented | Build scripts and app structure in place |
+| PWA plugin and manifest | Implemented | `vite-plugin-pwa` configured |
+| Chromium browser requirement | Implemented | Required for Web Bluetooth + Web Serial |
+| Firefox/Safari support | Planned (Phase 3) | Not currently possible for required APIs |
+
+## 3. Protocol and UUID Reference (Current)
+
+### 3.1 Provisioning Service
+
+- Service: `00467768-6228-2272-4663-277478268000`
+- Status: `...8001`
+- Error: `...8002`
+- RPC Command: `...8003`
+- RPC Result: `...8004`
+
+Commands:
+- `{"command":"set_pin","pin":"123456"}`
+- `{"command":"set_wifi","ssid":"MyNet","password":"pass"}`
+- `{"command":"complete"}`
+
+### 3.2 Normal Service
+
+- Service: `6e400001-b5a3-f393-e0a9-e50e24dcca9e`
+- Text Input: `6e400002`
+- Status: `6e400003`
+- PIN Management: `6e400004`
+- WiFi Config (stub): `6e400005`
+- Cert Fingerprint (stub): `6e400006`
+
+PIN Management actions:
+- `auth`, `verify`, `logout`
+- `set` (change PIN)
+- `set_config` (`typing_delay`, `led_brightness`)
+- `get_logs`
+- `abort`
+- `key_combo`
+
+Status payload (actual fields):
+- `connected`, `typing`, `queue`, `authenticated`, `keyboard_connected`, `retry_delay_ms`, `locked_out`, optional `auth_error`
+
+## 4. Known Gaps and Partial Items
+
+1. WiFi and certificate characteristics are placeholders in normal BLE service.
+2. BLE security is currently app-layer PIN auth; link-layer SC/bonding/MITM enforcement is disabled in normal mode.
+3. Typing LED behavior differs from original red-flash spec (`LED_STATE_TYPING` exists, but runtime currently uses key-timed orange blink).
+4. Web provisioning flow does not expose WiFi credential input even though firmware accepts `set_wifi`.
+5. Audit log viewer is basic; firmware emits logs through notify path but UI retrieval/parsing is minimal.
+6. No WSS/network transport path is wired in firmware or webapp.
+7. OTA over network is not implemented.
+
+## 5. Planned Features (Phase 3)
+
+- WiFi manager and real BLE WiFi operations (`scan/connect/disconnect/list/forget`)
+- Certificate generation/storage and real fingerprint characteristic
+- HTTP cert download endpoint
+- HTTPS/WSS server with PIN auth header
+- OTA update transport and signature-verification flow integration
+- Dedicated network connection UI and certificate setup UI
+- Robust SysRq safety UX (confirmations/cooldown) plus dedicated firmware event handling
+- Connectivity policy manager for BLE/WSS switching
+
+## 6. CI/CD and Tooling
+
+### Implemented Workflows
+
+- `build-firmware.yml`
+  - Trigger: tag push `v*` or manual dispatch
+  - Build in `espressif/idf:v5.3`
+  - Sign with `OTA_SIGNING_KEY`
+  - Publish artifacts: `firmware-esp32s3.bin`, `firmware-esp32s3.sig`, `bootloader-esp32s3.bin`, `partition-table-esp32s3.bin`
+
+- `deploy-webapp.yml`
+  - Trigger: successful `Build Firmware` workflow-run (push event) or manual dispatch with release tag
+  - Uses Node 24
+  - Prepares hosted firmware assets via `.github/scripts/prepare-pages-firmware.mjs`
+  - Deploys webapp to GitHub Pages
+
+### Build Toolchain
+
+- Firmware: ESP-IDF (`idf.py`) in devcontainer
+- Webapp: Vite + TypeScript
+- Flasher: Web Serial + `esptool-js`
