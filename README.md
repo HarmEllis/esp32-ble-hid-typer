@@ -39,6 +39,20 @@ An ESP32-S3 that acts as a USB HID keyboard. A Preact PWA connects to it via Blu
 3. Click **Scan & Connect**, select `ESP32-HID-Typer`, and unlock with your PIN.
 4. Use **Send Text** to type on the target machine through the ESP32 keyboard.
 
+### Factory Reset
+
+If you forget your PIN or want to return the device to provisioning mode, hold the **BOOT** button for 10 seconds:
+
+1. Press and hold the **BOOT** button (GPIO0).
+2. After **2 seconds** the LED starts blinking yellow — this is a warning that a reset is in progress.
+3. After **10 seconds** the LED turns solid red — the reset has been confirmed.
+4. The device erases stored credentials and PIN, then reboots into provisioning mode (`ESP32-HID-SETUP`).
+5. Follow the [First-Time Setup](#first-time-setup) steps again starting from step 7.
+
+Releasing the button before the 10-second mark cancels the reset. A factory reset does **not** erase the firmware itself — only the PIN, WiFi credentials, and device configuration are wiped.
+
+You can also trigger a reset over the serial console using the `factory_reset` or `full_reset` commands (see [Serial Console](#serial-console-optional)).
+
 ### Troubleshooting
 
 - If Bluetooth scan shows no device, confirm the board is powered and nearby.
